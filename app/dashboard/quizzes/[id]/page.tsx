@@ -1,95 +1,166 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { useQuery, useMutation } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
-import { ArrowLeft, ArrowRight, CheckCircle } from "lucide-react"
-
-// Sample quiz data
-const quizData = {
-  id: "1",
-  title: "JavaScript Fundamentals",
-  questions: [
-    {
-      id: "q1",
-      text: "Which of the following is NOT a JavaScript data type?",
-      options: [
-        { id: "a", text: "String" },
-        { id: "b", text: "Boolean" },
-        { id: "c", text: "Float" },
-        { id: "d", text: "Symbol" },
-      ],
-      correctAnswer: "c",
-    },
-    {
-      id: "q2",
-      text: 'What does the "===" operator do in JavaScript?',
-      options: [
-        { id: "a", text: "Checks for equality, but not type" },
-        { id: "b", text: "Checks for equality, including type" },
-        { id: "c", text: "Assigns a value to a variable" },
-        { id: "d", text: "Checks if a variable is defined" },
-      ],
-      correctAnswer: "b",
-    },
-    {
-      id: "q3",
-      text: "Which method is used to add an element to the end of an array?",
-      options: [
-        { id: "a", text: "push()" },
-        { id: "b", text: "pop()" },
-        { id: "c", text: "shift()" },
-        { id: "d", text: "unshift()" },
-      ],
-      correctAnswer: "a",
-    },
-    {
-      id: "q4",
-      text: "What is the correct way to create a function in JavaScript?",
-      options: [
-        { id: "a", text: "function = myFunction() {}" },
-        { id: "b", text: "function:myFunction() {}" },
-        { id: "c", text: "function myFunction() {}" },
-        { id: "d", text: "create myFunction() {}" },
-      ],
-      correctAnswer: "c",
-    },
-    {
-      id: "q5",
-      text: "Which of these is NOT a JavaScript framework or library?",
-      options: [
-        { id: "a", text: "React" },
-        { id: "b", text: "Angular" },
-        { id: "c", text: "Swift" },
-        { id: "d", text: "Vue" },
-      ],
-      correctAnswer: "c",
-    },
-  ],
-}
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { ArrowLeft, ArrowRight, CheckCircle, Loader2, AlertTriangle } from "lucide-react"
+import { useToast } from "@/components/ui/use-toast"
+import { getQuiz, startQuizAttempt, submitQuizAnswer, completeQuizAttempt } from "@/lib/api/quiz"
 
 export default function QuizPage({ params }: { params: { id: string } }) {
   const router = useRouter()
+  const { toast } = useToast()
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [attemptId, setAttemptId] = useState<number | null>(null)
+  
+  // Fetch the quiz
+  const { 
+    data: quiz,
+    isLoading: isLoadingQuiz,
+    error: quizError
+  } = useQuery({
+    queryKey: ['quiz', params.id],
+    queryFn: () => getQuiz(params.id)
+  })
+  
+  // Start quiz attempt
+  const { mutate: startAttempt, isPending: isStartingAttempt } = useMutation({
+    mutationFn: () => startQuizAttempt(params.id),
+    onSuccess: (data) => {
+      setAttemptId(data.id)
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to start quiz",
+        description: error.message,
+        variant: "destructive"
+      })
+    }
+  })
+  
+  // Submit answer mutation
+  const { mutate: submitAnswer } = useMutation({
+    mutationFn: ({
+      questionId,
+      optionId
+    }: {
+      questionId: number,
+      optionId: number
+    }) => {
+      if (!attemptId) throw new Error("No active quiz attempt")
+      return submitQuizAnswer(attemptId, questionId, optionId)
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to submit answer",
+        description: error.message,
+        variant: "destructive"
+      })
+    }
+  })
+  
+  // Complete quiz mutation
+  const { mutate: finishQuiz } = useMutation({
+    mutationFn: () => {
+      if (!attemptId) throw new Error("No active quiz attempt")
+      return completeQuizAttempt(attemptId)
+    },
+    onSuccess: (data) => {
+      setIsSubmitting(false)
+      router.push(`/dashboard/quizzes/attempts/${data.id}/results`)
+    },
+    onError: (error: Error) => {
+      setIsSubmitting(false)
+      toast({
+        title: "Failed to complete quiz",
+        description: error.message,
+        variant: "destructive"
+      })
+    }
+  })
+  
+  // Start the attempt when the quiz loads
+  useEffect(() => {
+    if (quiz && !attemptId && !isStartingAttempt) {
+      startAttempt()
+    }
+  }, [quiz, attemptId, isStartingAttempt, startAttempt])
+  
+  // Handle loading and error states
+  if (isLoadingQuiz || isStartingAttempt) {
+    return (
+      <div className="container mx-auto flex max-w-3xl flex-col items-center justify-center p-6 h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+        <p>Loading quiz...</p>
+      </div>
+    )
+  }
+  
+  if (quizError) {
+    return (
+      <div className="container mx-auto flex max-w-3xl flex-col p-6">
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Failed to load quiz. Please try again later.
+          </AlertDescription>
+        </Alert>
+        <Button 
+          onClick={() => router.push('/dashboard/quizzes')}
+          className="mt-4"
+        >
+          Back to Quizzes
+        </Button>
+      </div>
+    )
+  }
+  
+  if (!quiz || !quiz.questions || quiz.questions.length === 0) {
+    return (
+      <div className="container mx-auto flex max-w-3xl flex-col p-6">
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            This quiz has no questions.
+          </AlertDescription>
+        </Alert>
+        <Button 
+          onClick={() => router.push('/dashboard/quizzes')}
+          className="mt-4"
+        >
+          Back to Quizzes
+        </Button>
+      </div>
+    )
+  }
+  
+  const question = quiz.questions[currentQuestion]
+  const progress = ((currentQuestion + 1) / quiz.questions.length) * 100
 
-  const question = quizData.questions[currentQuestion]
-  const progress = ((currentQuestion + 1) / quizData.questions.length) * 100
-
-  const handleAnswer = (value: string) => {
+  const handleAnswer = (optionId: string) => {
+    // Update local state
     setAnswers((prev) => ({
       ...prev,
-      [question.id]: value,
+      [question.id]: optionId,
     }))
+    
+    // Submit to backend
+    submitAnswer({
+      questionId: question.id,
+      optionId: parseInt(optionId)
+    })
   }
 
   const handleNext = () => {
-    if (currentQuestion < quizData.questions.length - 1) {
+    if (currentQuestion < quiz.questions.length - 1) {
       setCurrentQuestion((prev) => prev + 1)
     }
   }
@@ -102,35 +173,20 @@ export default function QuizPage({ params }: { params: { id: string } }) {
 
   const handleSubmit = () => {
     setIsSubmitting(true)
-
-    // Calculate score
-    let correctCount = 0
-    quizData.questions.forEach((q) => {
-      if (answers[q.id] === q.correctAnswer) {
-        correctCount++
-      }
-    })
-
-    const score = Math.round((correctCount / quizData.questions.length) * 100)
-
-    // Simulate submitting to server
-    setTimeout(() => {
-      setIsSubmitting(false)
-      router.push(`/dashboard/quizzes/${params.id}/results?score=${score}`)
-    }, 1500)
+    finishQuiz()
   }
 
-  const isLastQuestion = currentQuestion === quizData.questions.length - 1
+  const isLastQuestion = currentQuestion === quiz.questions.length - 1
   const hasAnsweredCurrent = answers[question.id] !== undefined
 
   return (
     <div className="container mx-auto flex max-w-3xl flex-col p-6">
       <header className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">{quizData.title}</h1>
+        <h1 className="text-3xl font-bold tracking-tight">{quiz.title}</h1>
         <div className="mt-4 space-y-2">
           <div className="flex items-center justify-between text-sm">
             <span>
-              Question {currentQuestion + 1} of {quizData.questions.length}
+              Question {currentQuestion + 1} of {quiz.questions.length}
             </span>
             <span>{Math.round(progress)}% complete</span>
           </div>
@@ -140,32 +196,61 @@ export default function QuizPage({ params }: { params: { id: string } }) {
 
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle className="text-xl">{question.text}</CardTitle>
+          <CardTitle className="text-xl">{question.questionText}</CardTitle>
         </CardHeader>
         <CardContent>
-          <RadioGroup value={answers[question.id]} onValueChange={handleAnswer} className="space-y-4">
+          <RadioGroup 
+            value={answers[question.id]} 
+            onValueChange={handleAnswer} 
+            className="space-y-4"
+          >
             {question.options.map((option) => (
               <div key={option.id} className="flex items-center space-x-2">
-                <RadioGroupItem value={option.id} id={`option-${option.id}`} />
-                <Label htmlFor={`option-${option.id}`} className="flex-1 cursor-pointer">
-                  {option.text}
+                <RadioGroupItem 
+                  value={option.id.toString()} 
+                  id={`option-${option.id}`} 
+                />
+                <Label 
+                  htmlFor={`option-${option.id}`} 
+                  className="flex-1 cursor-pointer"
+                >
+                  {option.optionText}
                 </Label>
               </div>
             ))}
           </RadioGroup>
         </CardContent>
         <CardFooter className="flex justify-between">
-          <Button variant="outline" onClick={handlePrevious} disabled={currentQuestion === 0}>
+          <Button 
+            variant="outline" 
+            onClick={handlePrevious} 
+            disabled={currentQuestion === 0}
+          >
             <ArrowLeft className="mr-2 h-4 w-4" /> Previous
           </Button>
 
           {isLastQuestion ? (
-            <Button onClick={handleSubmit} disabled={!hasAnsweredCurrent || isSubmitting}>
-              {isSubmitting ? "Submitting..." : "Submit Quiz"}
-              {!isSubmitting && <CheckCircle className="ml-2 h-4 w-4" />}
+            <Button 
+              onClick={handleSubmit} 
+              disabled={!hasAnsweredCurrent || isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  Submit Quiz
+                  <CheckCircle className="ml-2 h-4 w-4" />
+                </>
+              )}
             </Button>
           ) : (
-            <Button onClick={handleNext} disabled={!hasAnsweredCurrent}>
+            <Button 
+              onClick={handleNext} 
+              disabled={!hasAnsweredCurrent}
+            >
               Next <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           )}
@@ -173,11 +258,15 @@ export default function QuizPage({ params }: { params: { id: string } }) {
       </Card>
 
       <div className="flex flex-wrap gap-2">
-        {quizData.questions.map((_, index) => (
+        {quiz.questions.map((_, index) => (
           <Button
             key={index}
             variant={
-              index === currentQuestion ? "default" : answers[quizData.questions[index].id] ? "secondary" : "outline"
+              index === currentQuestion 
+                ? "default" 
+                : answers[quiz.questions[index].id] 
+                  ? "secondary" 
+                  : "outline"
             }
             size="sm"
             className="h-8 w-8 p-0"

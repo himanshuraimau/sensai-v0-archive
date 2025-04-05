@@ -75,9 +75,29 @@ export async function updateUser(userId: number, userData: Partial<User>): Promi
 
 // Get user settings
 export async function getUserSettings(userId: number): Promise<UserSettings | null> {
-  return await prisma.userSettings.findUnique({
+  const userSettings = await prisma.userSettings.findUnique({
     where: { userId },
   });
+
+  if (!userSettings) {
+    return null;
+  }
+
+  // Map the Prisma result to the UserSettings interface
+  const mappedSettings: UserSettings = {
+    setting_id: userSettings.id,
+    user_id: userSettings.userId,
+    theme_mode: userSettings.themeMode || "light",
+    color_theme: userSettings.colorTheme || "yellow",
+    font_size: userSettings.fontSize || "medium",
+    animation_level: userSettings.animationLevel || "standard",
+    notifications_enabled: userSettings.notificationsEnabled ?? true,
+    email_notifications_enabled: userSettings.emailNotificationsEnabled ?? true,
+    learning_analytics_enabled: userSettings.learningAnalyticsEnabled ?? true,
+    two_factor_enabled: userSettings.twoFactorEnabled ?? false,
+  };
+
+  return mappedSettings;
 }
 
 // Update user settings
@@ -89,23 +109,36 @@ export async function updateUserSettings(userId: number, settings: Partial<UserS
 
   if (!existingSettings) {
     // Create settings if they don't exist
-    return await prisma.userSettings.create({
+    const userSettings = await prisma.userSettings.create({
       data: {
         userId: userId,
-        themeMode: settings.theme_mode || "light",
-        colorTheme: settings.color_theme || "yellow",
-        fontSize: settings.font_size || "medium",
-        animationLevel: settings.animation_level || "standard",
+        themeMode: settings.theme_mode ?? "light",
+        colorTheme: settings.color_theme ?? "yellow",
+        fontSize: settings.font_size ?? "medium",
+        animationLevel: settings.animation_level ?? "standard",
         notificationsEnabled: settings.notifications_enabled ?? true,
         emailNotificationsEnabled: settings.email_notifications_enabled ?? true,
         learningAnalyticsEnabled: settings.learning_analytics_enabled ?? true,
         twoFactorEnabled: settings.two_factor_enabled ?? false,
       }
     });
+
+    return {
+      setting_id: userSettings.id,
+      user_id: userSettings.userId,
+      theme_mode: userSettings.themeMode || "light",
+      color_theme: userSettings.colorTheme || "yellow",
+      font_size: userSettings.fontSize || "medium",
+      animation_level: userSettings.animationLevel || "standard",
+      notifications_enabled: userSettings.notificationsEnabled ?? true,
+      email_notifications_enabled: userSettings.emailNotificationsEnabled ?? true,
+      learning_analytics_enabled: userSettings.learningAnalyticsEnabled ?? true,
+      two_factor_enabled: userSettings.twoFactorEnabled ?? false,
+    };
   }
 
   // Update existing settings
-  return await prisma.userSettings.update({
+  const updatedSettings = await prisma.userSettings.update({
     where: { userId },
     data: {
       themeMode: settings.theme_mode,
@@ -118,13 +151,34 @@ export async function updateUserSettings(userId: number, settings: Partial<UserS
       twoFactorEnabled: settings.two_factor_enabled,
     }
   });
+
+  return {
+    setting_id: updatedSettings.id,
+    user_id: updatedSettings.userId,
+    theme_mode: updatedSettings.themeMode || "light",
+    color_theme: updatedSettings.colorTheme || "yellow",
+    font_size: updatedSettings.fontSize || "medium",
+    animation_level: updatedSettings.animationLevel || "standard",
+    notifications_enabled: updatedSettings.notificationsEnabled ?? true,
+    email_notifications_enabled: updatedSettings.emailNotificationsEnabled ?? true,
+    learning_analytics_enabled: updatedSettings.learningAnalyticsEnabled ?? true,
+    two_factor_enabled: updatedSettings.twoFactorEnabled ?? false,
+  };
 }
 
 // Get user interests
 export async function getUserInterests(userId: number): Promise<UserInterest[]> {
-  return await prisma.userInterest.findMany({
+  const interests = await prisma.userInterest.findMany({
     where: { userId },
   });
+  
+  return interests.map(interest => ({
+    interest_id: interest.id,
+    user_id: interest.userId,
+    subject: interest.subject,
+    interest_level: interest.interestLevel,
+    created_at: interest.createdAt.toISOString(),
+  }));
 }
 
 // Add a user interest

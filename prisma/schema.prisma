@@ -51,9 +51,11 @@ model User {
   interactions      ContentInteraction[]
   notifications     UserNotification[]
   notificationSettings NotificationSetting[]
+  SavedResponse     SavedResponse[]
+  quizzes           Quiz[]
+  quizAttempts      QuizAttempt[]
 
   @@map("users")
-  SavedResponse SavedResponse[]
 }
 
 model UserSettings {
@@ -631,4 +633,85 @@ model NotificationSetting {
 
   @@unique([userId, typeId])
   @@map("notification_settings")
+}
+
+model Quiz {
+  id              Int           @id @default(autoincrement()) @map("quiz_id")
+  userId          Int           @map("user_id")
+  title           String        @db.VarChar(255)
+  description     String?
+  difficultyLevel String        @map("difficulty_level") @db.VarChar(20) // beginner, intermediate, advanced
+  timeEstimate    String?       @map("time_estimate") @db.VarChar(20)
+  subjectArea     String        @map("subject_area") @db.VarChar(50)
+  isGenerated     Boolean       @default(true) @map("is_generated")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @default(now()) @map("updated_at")
+  
+  // Relations
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questions       QuizQuestion[]
+  attempts        QuizAttempt[]
+
+  @@map("quizzes")
+}
+
+model QuizQuestion {
+  id              Int           @id @default(autoincrement()) @map("question_id")
+  quizId          Int           @map("quiz_id")
+  questionText    String        @map("question_text")
+  explanation     String?
+  orderIndex      Int           @map("order_index")
+  
+  // Relations
+  quiz            Quiz          @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  options         QuizOption[]
+  answers         QuizAnswer[]
+
+  @@map("quiz_questions")
+}
+
+model QuizOption {
+  id              Int           @id @default(autoincrement()) @map("option_id")
+  questionId      Int           @map("question_id")
+  optionText      String        @map("option_text")
+  isCorrect       Boolean       @default(false) @map("is_correct")
+  orderIndex      Int           @map("order_index")
+  
+  // Relations
+  question        QuizQuestion  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answers         QuizAnswer[]
+
+  @@map("quiz_options")
+}
+
+model QuizAttempt {
+  id              Int           @id @default(autoincrement()) @map("attempt_id")
+  userId          Int           @map("user_id")
+  quizId          Int           @map("quiz_id")
+  score           Int?
+  maxScore        Int           @map("max_score")
+  completedAt     DateTime?     @map("completed_at")
+  startedAt       DateTime      @default(now()) @map("started_at")
+  
+  // Relations
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz            Quiz          @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  answers         QuizAnswer[]
+
+  @@map("quiz_attempts")
+}
+
+model QuizAnswer {
+  id              Int           @id @default(autoincrement()) @map("answer_id")
+  attemptId       Int           @map("attempt_id")
+  questionId      Int           @map("question_id")
+  selectedOptionId Int?         @map("selected_option_id")
+  isCorrect       Boolean?      @map("is_correct")
+  
+  // Relations
+  attempt         QuizAttempt   @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question        QuizQuestion  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedOption  QuizOption?   @relation(fields: [selectedOptionId], references: [id])
+
+  @@map("quiz_answers")
 }
