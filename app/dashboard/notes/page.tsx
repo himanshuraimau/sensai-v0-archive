@@ -64,7 +64,7 @@ export default function NotesPage() {
   }
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-full w-max-full">
       <NotesSidebar notes={notes} isLoading={isLoading} />
 
       <div className="flex-1 flex flex-col overflow-hidden">

@@ -34,7 +34,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="flex flex-col space-y-6">
+    <div className="flex flex-col space-y-6 w-full p-16">
       <header className="mb-2">
         <h1 className="text-3xl font-bold tracking-tight">Welcome back, Alex</h1>
         <p className="text-muted-foreground">Continue your learning journey where you left off</p>
