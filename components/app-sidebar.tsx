@@ -40,8 +40,20 @@ import { useState } from "react"
 export function AppSidebar() {
   const pathname = usePathname()
   const { state } = useSidebar()
-  const { logout } = useAuth()
+  const { user, logout } = useAuth()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+  // Get user initials for avatar fallback
+  const getUserInitials = () => {
+    if (!user?.fullName) return "U";
+    
+    const nameParts = user.fullName.split(" ");
+    if (nameParts.length === 1) {
+      return nameParts[0].charAt(0).toUpperCase();
+    }
+    
+    return (nameParts[0].charAt(0) + nameParts[nameParts.length - 1].charAt(0)).toUpperCase();
+  };
 
   const isActive = (path: string) => {
     return pathname === path || pathname?.startsWith(`${path}/`)
@@ -180,10 +192,13 @@ export function AppSidebar() {
             <SidebarMenuButton asChild isActive={isActive("/dashboard/profile")} tooltip="Profile">
               <Link href="/dashboard/profile">
                 <Avatar className="h-6 w-6">
-                  <AvatarImage src="/placeholder.svg?height=32&width=32" />
-                  <AvatarFallback>A</AvatarFallback>
+                  <AvatarImage 
+                    src={user?.profileImageUrl || "/placeholder.svg?height=32&width=32"} 
+                    alt={user?.fullName || "User"}
+                  />
+                  <AvatarFallback>{getUserInitials()}</AvatarFallback>
                 </Avatar>
-                <span>Alex Johnson</span>
+                <span>{user?.fullName || user?.username || "My Profile"}</span>
                 {state === "expanded" && <ChevronRight className="ml-auto h-4 w-4" />}
               </Link>
             </SidebarMenuButton>
