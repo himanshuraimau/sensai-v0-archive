@@ -34,13 +34,29 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Badge } from "@/components/ui/badge"
+import { useAuth } from "@/lib/hooks/use-auth"
+import { useState } from "react"
 
 export function AppSidebar() {
   const pathname = usePathname()
   const { state } = useSidebar()
+  const { logout } = useAuth()
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
 
   const isActive = (path: string) => {
     return pathname === path || pathname?.startsWith(`${path}/`)
+  }
+
+  const handleLogout = async () => {
+    try {
+      setIsLoggingOut(true)
+      await logout()
+      // No need to navigate here, the logout function already handles navigation
+    } catch (error) {
+      console.error("Failed to logout:", error)
+    } finally {
+      setIsLoggingOut(false)
+    }
   }
 
   return (
@@ -187,11 +203,13 @@ export function AppSidebar() {
             </div>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Logout">
-              <Link href="/">
-                <LogOut />
-                <span>Logout</span>
-              </Link>
+            <SidebarMenuButton 
+              onClick={handleLogout} 
+              disabled={isLoggingOut} 
+              tooltip="Logout"
+            >
+              <LogOut />
+              <span>{isLoggingOut ? "Logging out..." : "Logout"}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

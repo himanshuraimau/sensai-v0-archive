@@ -185,14 +185,14 @@ export default function SignupPage() {
               </div>
             </CardContent>
             <CardFooter className="flex flex-col space-y-4">
-              <Button type="submit" className="w-full" disabled={loading || !isPasswordStrong}>
-                {loading ? "Creating account..." : "Create account"}
+              <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Creating account..." : "Create account"}
               </Button>
               <div className="text-center text-sm">
-                Already have an account?{" "}
-                <Link href="/login" className="text-primary hover:underline">
-                  Sign in
-                </Link>
+              Already have an account?{" "}
+              <Link href="/login" className="text-primary hover:underline">
+                Sign in
+              </Link>
               </div>
             </CardFooter>
           </form>
