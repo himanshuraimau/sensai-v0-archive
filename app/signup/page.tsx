@@ -27,7 +27,7 @@ export default function SignupPage() {
   // Redirect if already logged in
   useEffect(() => {
     if (user) {
-      router.push("/dashboard")
+      router.push("/onboarding")
     }
   }, [user, router])
 
