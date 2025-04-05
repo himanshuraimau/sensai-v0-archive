@@ -1,5 +1,6 @@
 import { getDb } from "../db"
 import type { User } from "../auth"
+import { prisma } from "@/lib/prisma"
 
 export interface UserSettings {
   setting_id: number
@@ -32,217 +33,324 @@ export interface UserLearningGoal {
 }
 
 // Get a user by ID
-export function getUserById(userId: number): User | null {
-  const db = getDb()
-  return db.prepare("SELECT * FROM users WHERE user_id = ?").get(userId) as User | null
+export async function getUserById(userId: number): Promise<User | null> {
+  return await prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      settings: true,
+    }
+  });
 }
 
 // Get a user by email
-export function getUserByEmail(email: string): User | null {
-  const db = getDb()
-  return db.prepare("SELECT * FROM users WHERE email = ?").get(email) as User | null
+export async function getUserByEmail(email: string): Promise<User | null> {
+  return await prisma.user.findUnique({
+    where: { email },
+  });
 }
 
 // Get a user by username
-export function getUserByUsername(username: string): User | null {
-  const db = getDb()
-  return db.prepare("SELECT * FROM users WHERE username = ?").get(username) as User | null
+export async function getUserByUsername(username: string): Promise<User | null> {
+  return await prisma.user.findUnique({
+    where: { username },
+  });
 }
 
 // Update a user
-export function updateUser(userId: number, userData: Partial<User>): User | null {
-  const db = getDb()
-
-  // Build the SET part of the SQL query dynamically
-  const updateFields = Object.keys(userData)
-    .filter((key) => key !== "user_id" && key !== "created_at") // Exclude fields that shouldn't be updated
-    .map((key) => `${key} = ?`)
-
-  if (updateFields.length === 0) {
-    return getUserById(userId)
-  }
-
-  const updateValues = Object.keys(userData)
-    .filter((key) => key !== "user_id" && key !== "created_at")
-    .map((key) => userData[key as keyof typeof userData])
-
-  const sql = `UPDATE users SET ${updateFields.join(", ")}, updated_at = datetime('now') WHERE user_id = ?`
-
-  db.prepare(sql).run(...updateValues, userId)
-
-  return getUserById(userId)
+export async function updateUser(userId: number, userData: Partial<User>): Promise<User | null> {
+  return await prisma.user.update({
+    where: { id: userId },
+    data: {
+      fullName: userData.fullName,
+      bio: userData.bio,
+      location: userData.location,
+      occupation: userData.occupation,
+      profileImageUrl: userData.profileImageUrl,
+    },
+    include: {
+      settings: true,
+    }
+  });
 }
 
 // Get user settings
-export function getUserSettings(userId: number): UserSettings | null {
-  const db = getDb()
-  return db.prepare("SELECT * FROM user_settings WHERE user_id = ?").get(userId) as UserSettings | null
+export async function getUserSettings(userId: number): Promise<UserSettings | null> {
+  return await prisma.userSettings.findUnique({
+    where: { userId },
+  });
 }
 
 // Update user settings
-export function updateUserSettings(userId: number, settings: Partial<UserSettings>): UserSettings | null {
-  const db = getDb()
-
+export async function updateUserSettings(userId: number, settings: Partial<UserSettings>): Promise<UserSettings | null> {
   // Check if settings exist
-  const existingSettings = getUserSettings(userId)
+  const existingSettings = await prisma.userSettings.findUnique({
+    where: { userId },
+  });
 
   if (!existingSettings) {
     // Create settings if they don't exist
-    const defaultSettings = {
-      user_id: userId,
-      theme_mode: "light",
-      color_theme: "yellow",
-      font_size: "medium",
-      animation_level: "standard",
-      notifications_enabled: true,
-      email_notifications_enabled: true,
-      learning_analytics_enabled: true,
-      two_factor_enabled: false,
-      ...settings,
-    }
-
-    const fields = Object.keys(defaultSettings).join(", ")
-    const placeholders = Object.keys(defaultSettings)
-      .map(() => "?")
-      .join(", ")
-    const values = Object.values(defaultSettings)
-
-    db.prepare(`INSERT INTO user_settings (${fields}) VALUES (${placeholders})`).run(...values)
-
-    return getUserSettings(userId)
+    return await prisma.userSettings.create({
+      data: {
+        userId: userId,
+        themeMode: settings.theme_mode || "light",
+        colorTheme: settings.color_theme || "yellow",
+        fontSize: settings.font_size || "medium",
+        animationLevel: settings.animation_level || "standard",
+        notificationsEnabled: settings.notifications_enabled ?? true,
+        emailNotificationsEnabled: settings.email_notifications_enabled ?? true,
+        learningAnalyticsEnabled: settings.learning_analytics_enabled ?? true,
+        twoFactorEnabled: settings.two_factor_enabled ?? false,
+      }
+    });
   }
 
   // Update existing settings
-  const updateFields = Object.keys(settings)
-    .filter((key) => key !== "setting_id" && key !== "user_id")
-    .map((key) => `${key} = ?`)
-
-  if (updateFields.length === 0) {
-    return existingSettings
-  }
-
-  const updateValues = Object.keys(settings)
-    .filter((key) => key !== "setting_id" && key !== "user_id")
-    .map((key) => settings[key as keyof typeof settings])
-
-  const sql = `UPDATE user_settings SET ${updateFields.join(", ")} WHERE user_id = ?`
-
-  db.prepare(sql).run(...updateValues, userId)
-
-  return getUserSettings(userId)
+  return await prisma.userSettings.update({
+    where: { userId },
+    data: {
+      themeMode: settings.theme_mode,
+      colorTheme: settings.color_theme,
+      fontSize: settings.font_size,
+      animationLevel: settings.animation_level,
+      notificationsEnabled: settings.notifications_enabled,
+      emailNotificationsEnabled: settings.email_notifications_enabled,
+      learningAnalyticsEnabled: settings.learning_analytics_enabled,
+      twoFactorEnabled: settings.two_factor_enabled,
+    }
+  });
 }
 
 // Get user interests
-export function getUserInterests(userId: number): UserInterest[] {
-  const db = getDb()
-  return db.prepare("SELECT * FROM user_interests WHERE user_id = ?").all(userId) as UserInterest[]
+export async function getUserInterests(userId: number): Promise<UserInterest[]> {
+  return await prisma.userInterest.findMany({
+    where: { userId },
+  });
 }
 
 // Add a user interest
-export function addUserInterest(userId: number, subject: string, interestLevel = 5): UserInterest {
-  const db = getDb()
-
+export async function addUserInterest(userId: number, subject: string, interestLevel = 5): Promise<UserInterest> {
   // Check if the interest already exists
-  const existingInterest = db
-    .prepare("SELECT * FROM user_interests WHERE user_id = ? AND subject = ?")
-    .get(userId, subject) as UserInterest | undefined
+  const existingInterest = await prisma.userInterest.findFirst({
+    where: {
+      userId,
+      subject
+    }
+  });
 
   if (existingInterest) {
     // Update the interest level
-    db.prepare("UPDATE user_interests SET interest_level = ? WHERE interest_id = ?").run(
-      interestLevel,
-      existingInterest.interest_id,
-    )
+    const updatedInterest = await prisma.userInterest.update({
+      where: { id: existingInterest.id },
+      data: { interestLevel }
+    });
 
     return {
-      ...existingInterest,
-      interest_level: interestLevel,
-    }
+      interest_id: updatedInterest.id,
+      user_id: updatedInterest.userId,
+      subject: updatedInterest.subject,
+      interest_level: updatedInterest.interestLevel,
+      created_at: updatedInterest.createdAt.toISOString(),
+    };
   }
 
   // Add new interest
-  const result = db
-    .prepare(`
-    INSERT INTO user_interests (user_id, subject, interest_level, created_at)
-    VALUES (?, ?, ?, datetime('now'))
-  `)
-    .run(userId, subject, interestLevel)
-
-  const interestId = result.lastInsertRowid as number
+  const newInterest = await prisma.userInterest.create({
+    data: {
+      userId,
+      subject,
+      interestLevel
+    }
+  });
 
   return {
-    interest_id: interestId,
-    user_id: userId,
-    subject,
-    interest_level: interestLevel,
-    created_at: new Date().toISOString(),
-  }
+    interest_id: newInterest.id,
+    user_id: newInterest.userId,
+    subject: newInterest.subject,
+    interest_level: newInterest.interestLevel,
+    created_at: newInterest.createdAt.toISOString(),
+  };
 }
 
 // Remove a user interest
-export function removeUserInterest(interestId: number): boolean {
-  const db = getDb()
-  const result = db.prepare("DELETE FROM user_interests WHERE interest_id = ?").run(interestId)
-  return result.changes > 0
+export async function removeUserInterest(interestId: number): Promise<boolean> {
+  const result = await prisma.userInterest.delete({
+    where: { id: interestId }
+  }).catch(() => null);
+  
+  return result !== null;
 }
 
 // Get user learning goals
-export function getUserLearningGoals(userId: number): UserLearningGoal[] {
-  const db = getDb()
-  return db.prepare("SELECT * FROM user_learning_goals WHERE user_id = ?").all(userId) as UserLearningGoal[]
+export async function getUserLearningGoals(userId: number): Promise<UserLearningGoal[]> {
+  const goals = await prisma.userLearningGoal.findMany({
+    where: { userId }
+  });
+  
+  return goals.map(goal => ({
+    goal_id: goal.id,
+    user_id: goal.userId,
+    goal_type: goal.goalType,
+    description: goal.description || "",
+    is_active: goal.isActive,
+    created_at: goal.createdAt.toISOString(),
+  }));
 }
 
 // Add a user learning goal
-export function addUserLearningGoal(userId: number, goalType: string, description: string): UserLearningGoal {
-  const db = getDb()
-
-  const result = db
-    .prepare(`
-    INSERT INTO user_learning_goals (user_id, goal_type, description, is_active, created_at)
-    VALUES (?, ?, ?, 1, datetime('now'))
-  `)
-    .run(userId, goalType, description)
-
-  const goalId = result.lastInsertRowid as number
+export async function addUserLearningGoal(userId: number, goalType: string, description: string): Promise<UserLearningGoal> {
+  const goal = await prisma.userLearningGoal.create({
+    data: {
+      userId,
+      goalType,
+      description,
+      isActive: true
+    }
+  });
 
   return {
-    goal_id: goalId,
-    user_id: userId,
-    goal_type: goalType,
-    description,
-    is_active: true,
-    created_at: new Date().toISOString(),
-  }
+    goal_id: goal.id,
+    user_id: goal.userId,
+    goal_type: goal.goalType,
+    description: goal.description || "",
+    is_active: goal.isActive,
+    created_at: goal.createdAt.toISOString(),
+  };
 }
 
 // Update a user learning goal
-export function updateUserLearningGoal(goalId: number, updates: Partial<UserLearningGoal>): UserLearningGoal | null {
-  const db = getDb()
+export async function updateUserLearningGoal(goalId: number, updates: Partial<UserLearningGoal>): Promise<UserLearningGoal | null> {
+  const goal = await prisma.userLearningGoal.update({
+    where: { id: goalId },
+    data: {
+      goalType: updates.goal_type,
+      description: updates.description,
+      isActive: updates.is_active
+    }
+  }).catch(() => null);
 
-  // Build the SET part of the SQL query dynamically
-  const updateFields = Object.keys(updates)
-    .filter((key) => key !== "goal_id" && key !== "user_id" && key !== "created_at")
-    .map((key) => `${key} = ?`)
+  if (!goal) return null;
 
-  if (updateFields.length === 0) {
-    return db.prepare("SELECT * FROM user_learning_goals WHERE goal_id = ?").get(goalId) as UserLearningGoal | null
-  }
-
-  const updateValues = Object.keys(updates)
-    .filter((key) => key !== "goal_id" && key !== "user_id" && key !== "created_at")
-    .map((key) => updates[key as keyof typeof updates])
-
-  const sql = `UPDATE user_learning_goals SET ${updateFields.join(", ")} WHERE goal_id = ?`
-
-  db.prepare(sql).run(...updateValues, goalId)
-
-  return db.prepare("SELECT * FROM user_learning_goals WHERE goal_id = ?").get(goalId) as UserLearningGoal | null
+  return {
+    goal_id: goal.id,
+    user_id: goal.userId,
+    goal_type: goal.goalType,
+    description: goal.description || "",
+    is_active: goal.isActive,
+    created_at: goal.createdAt.toISOString(),
+  };
 }
 
 // Delete a user learning goal
-export function deleteUserLearningGoal(goalId: number): boolean {
-  const db = getDb()
-  const result = db.prepare("DELETE FROM user_learning_goals WHERE goal_id = ?").run(goalId)
-  return result.changes > 0
+export async function deleteUserLearningGoal(goalId: number): Promise<boolean> {
+  const result = await prisma.userLearningGoal.delete({
+    where: { id: goalId }
+  }).catch(() => null);
+  
+  return result !== null;
+}
+
+type OnboardingData = {
+  interests: Array<{
+    subject: string;
+    interestLevel?: number;
+  }>;
+  learningGoals: Array<{
+    goalType: string;
+    description?: string;
+  }>;
+}
+
+export async function saveUserOnboarding(userId: number, data: OnboardingData) {
+  const { interests, learningGoals } = data;
+
+  // Start a transaction to ensure all data is saved consistently
+  return await prisma.$transaction(async (tx) => {
+    // Add user interests
+    const savedInterests = await Promise.all(
+      interests.map(async (interest) => {
+        return await tx.userInterest.create({
+          data: {
+            userId: userId,
+            subject: interest.subject,
+            interestLevel: interest.interestLevel || 5, // Default interest level
+          }
+        });
+      })
+    );
+
+    // Add user learning goals
+    const savedGoals = await Promise.all(
+      learningGoals.map(async (goal) => {
+        return await tx.userLearningGoal.create({
+          data: {
+            userId: userId,
+            goalType: goal.goalType,
+            description: goal.description || null,
+            isActive: true,
+          }
+        });
+      })
+    );
+
+    // Mark the user as having completed onboarding (could add a field for this in the future)
+    const updatedUser = await tx.user.update({
+      where: { id: userId },
+      data: { isVerified: true } // Using isVerified for now to indicate onboarding is complete
+    });
+
+    return {
+      interests: savedInterests,
+      learningGoals: savedGoals,
+      user: updatedUser
+    };
+  });
+}
+
+// User profile interface
+export interface UserProfile {
+  id: number;
+  username: string;
+  email: string;
+  fullName: string;
+  bio: string | null;
+  location: string | null;
+  occupation: string | null;
+  profileImageUrl: string | null;
+  isVerified: boolean;
+  createdAt: Date;
+  interests?: UserInterest[];
+  learningGoals?: UserLearningGoal[];
+  settings?: UserSettings;
+}
+
+// Get complete user profile
+export async function getUserProfile(userId: number): Promise<UserProfile | null> {
+  return await prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      interests: true,
+      learningGoals: true,
+      settings: true,
+    }
+  });
+}
+
+// Update user profile
+export async function updateUserProfile(userId: number, profileData: Partial<UserProfile>): Promise<UserProfile | null> {
+  return await prisma.user.update({
+    where: { id: userId },
+    data: {
+      fullName: profileData.fullName,
+      bio: profileData.bio,
+      location: profileData.location,
+      occupation: profileData.occupation,
+      profileImageUrl: profileData.profileImageUrl,
+    },
+    include: {
+      interests: true,
+      learningGoals: true,
+      settings: true,
+    }
+  });
 }
 

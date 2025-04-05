@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -9,24 +9,88 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { Bell, Lock, Moon, Sun, Smartphone, Mail, Globe, Shield } from "lucide-react"
+import { Bell, Lock, Moon, Sun, Smartphone, Mail, Globe, Shield, Loader2 } from "lucide-react"
+import { getUserSettings, updateUserSettings } from "@/lib/services/profile-service"
 
 export default function SettingsPage() {
   const { toast } = useToast()
-  const [isDarkMode, setIsDarkMode] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  
+  const [settings, setSettings] = useState({
+    themeMode: "light",
+    colorTheme: "yellow",
+    fontSize: "medium",
+    animationLevel: "standard",
+    notificationsEnabled: true,
+    emailNotificationsEnabled: true,
+    learningAnalyticsEnabled: true,
+    twoFactorEnabled: false,
+  })
 
-  const handleSaveSettings = () => {
-    setIsLoading(true)
+  // Load user settings
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const userSettings = await getUserSettings()
+        if (userSettings) {
+          setSettings({
+            themeMode: userSettings.themeMode || "light",
+            colorTheme: userSettings.colorTheme || "yellow",
+            fontSize: userSettings.fontSize || "medium",
+            animationLevel: userSettings.animationLevel || "standard",
+            notificationsEnabled: userSettings.notificationsEnabled ?? true,
+            emailNotificationsEnabled: userSettings.emailNotificationsEnabled ?? true,
+            learningAnalyticsEnabled: userSettings.learningAnalyticsEnabled ?? true,
+            twoFactorEnabled: userSettings.twoFactorEnabled ?? false,
+          })
+        }
+      } catch (error) {
+        console.error("Error loading settings:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load settings. Please try again.",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    
+    loadSettings()
+  }, [toast])
 
-    // Simulate saving settings
-    setTimeout(() => {
-      setIsLoading(false)
+  const handleSaveSettings = async () => {
+    setIsSaving(true)
+    
+    try {
+      await updateUserSettings(settings)
+      
       toast({
         title: "Settings saved",
         description: "Your settings have been updated successfully.",
       })
-    }, 1000)
+    } catch (error) {
+      console.error("Error saving settings:", error)
+      toast({
+        title: "Error",
+        description: "Failed to save settings. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex h-[50vh] items-center justify-center">
+        <div className="flex flex-col items-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-lg text-muted-foreground">Loading settings...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -60,22 +124,26 @@ export default function SettingsPage() {
                   <NotificationSetting
                     title="New Content"
                     description="When new learning materials are available"
-                    defaultChecked={true}
+                    checked={settings.notificationsEnabled}
+                    onCheckedChange={(checked) => setSettings({ ...settings, notificationsEnabled: checked })}
                   />
                   <NotificationSetting
                     title="Quiz Reminders"
                     description="Reminders to complete scheduled quizzes"
-                    defaultChecked={true}
+                    checked={settings.notificationsEnabled}
+                    onCheckedChange={(checked) => setSettings({ ...settings, notificationsEnabled: checked })}
                   />
                   <NotificationSetting
                     title="Learning Streak"
                     description="Reminders to maintain your learning streak"
-                    defaultChecked={true}
+                    checked={settings.notificationsEnabled}
+                    onCheckedChange={(checked) => setSettings({ ...settings, notificationsEnabled: checked })}
                   />
                   <NotificationSetting
                     title="Chat Responses"
                     description="When the AI assistant responds to your messages"
-                    defaultChecked={true}
+                    checked={settings.notificationsEnabled}
+                    onCheckedChange={(checked) => setSettings({ ...settings, notificationsEnabled: checked })}
                   />
                 </div>
               </div>
@@ -89,22 +157,26 @@ export default function SettingsPage() {
                   <NotificationSetting
                     title="Weekly Summary"
                     description="Weekly report of your learning progress"
-                    defaultChecked={true}
+                    checked={settings.emailNotificationsEnabled}
+                    onCheckedChange={(checked) => setSettings({ ...settings, emailNotificationsEnabled: checked })}
                   />
                   <NotificationSetting
                     title="New Features"
                     description="Updates about new platform features"
-                    defaultChecked={true}
+                    checked={settings.emailNotificationsEnabled}
+                    onCheckedChange={(checked) => setSettings({ ...settings, emailNotificationsEnabled: checked })}
                   />
                   <NotificationSetting
                     title="Course Completion"
                     description="When you complete a course or learning path"
-                    defaultChecked={true}
+                    checked={settings.emailNotificationsEnabled}
+                    onCheckedChange={(checked) => setSettings({ ...settings, emailNotificationsEnabled: checked })}
                   />
                   <NotificationSetting
                     title="Special Offers"
                     description="Promotional content and special offers"
-                    defaultChecked={false}
+                    checked={settings.emailNotificationsEnabled}
+                    onCheckedChange={(checked) => setSettings({ ...settings, emailNotificationsEnabled: checked })}
                   />
                 </div>
               </div>
@@ -135,8 +207,8 @@ export default function SettingsPage() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button onClick={handleSaveSettings} disabled={isLoading}>
-                {isLoading ? "Saving..." : "Save Notification Settings"}
+              <Button onClick={handleSaveSettings} disabled={isSaving}>
+                {isSaving ? "Saving..." : "Save Notification Settings"}
               </Button>
             </CardFooter>
           </Card>
@@ -152,18 +224,25 @@ export default function SettingsPage() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    {isDarkMode ? <Moon className="h-5 w-5 text-primary" /> : <Sun className="h-5 w-5 text-primary" />}
+                    {settings.themeMode === "dark" ? <Moon className="h-5 w-5 text-primary" /> : <Sun className="h-5 w-5 text-primary" />}
                     <div>
                       <h3 className="text-lg font-medium">Theme Mode</h3>
                       <p className="text-sm text-muted-foreground">Choose between light and dark mode</p>
                     </div>
                   </div>
-                  <Switch checked={isDarkMode} onCheckedChange={setIsDarkMode} aria-label="Toggle dark mode" />
+                  <Switch 
+                    checked={settings.themeMode === "dark"} 
+                    onCheckedChange={(checked) => setSettings({ ...settings, themeMode: checked ? "dark" : "light" })} 
+                    aria-label="Toggle dark mode" 
+                  />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="theme-color">Color Theme</Label>
-                  <Select defaultValue="yellow">
+                  <Select 
+                    value={settings.colorTheme} 
+                    onValueChange={(value) => setSettings({ ...settings, colorTheme: value })}
+                  >
                     <SelectTrigger id="theme-color">
                       <SelectValue placeholder="Select a color theme" />
                     </SelectTrigger>
@@ -178,7 +257,10 @@ export default function SettingsPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="font-size">Font Size</Label>
-                  <Select defaultValue="medium">
+                  <Select 
+                    value={settings.fontSize} 
+                    onValueChange={(value) => setSettings({ ...settings, fontSize: value })}
+                  >
                     <SelectTrigger id="font-size">
                       <SelectValue placeholder="Select a font size" />
                     </SelectTrigger>
@@ -193,7 +275,10 @@ export default function SettingsPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="animation">Animation Level</Label>
-                  <Select defaultValue="standard">
+                  <Select 
+                    value={settings.animationLevel} 
+                    onValueChange={(value) => setSettings({ ...settings, animationLevel: value })}
+                  >
                     <SelectTrigger id="animation">
                       <SelectValue placeholder="Select animation level" />
                     </SelectTrigger>
@@ -207,8 +292,8 @@ export default function SettingsPage() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button onClick={handleSaveSettings} disabled={isLoading}>
-                {isLoading ? "Saving..." : "Save Appearance Settings"}
+              <Button onClick={handleSaveSettings} disabled={isSaving}>
+                {isSaving ? "Saving..." : "Save Appearance Settings"}
               </Button>
             </CardFooter>
           </Card>
@@ -230,12 +315,14 @@ export default function SettingsPage() {
                   <PrivacySetting
                     title="Two-Factor Authentication"
                     description="Add an extra layer of security to your account"
-                    defaultChecked={false}
+                    checked={settings.twoFactorEnabled}
+                    onCheckedChange={(checked) => setSettings({ ...settings, twoFactorEnabled: checked })}
                   />
                   <PrivacySetting
                     title="Login Notifications"
                     description="Get notified when someone logs into your account"
-                    defaultChecked={true}
+                    checked={settings.notificationsEnabled}
+                    onCheckedChange={(checked) => setSettings({ ...settings, notificationsEnabled: checked })}
                   />
                 </div>
               </div>
@@ -249,17 +336,20 @@ export default function SettingsPage() {
                   <PrivacySetting
                     title="Learning Analytics"
                     description="Share your learning data to improve recommendations"
-                    defaultChecked={true}
+                    checked={settings.learningAnalyticsEnabled}
+                    onCheckedChange={(checked) => setSettings({ ...settings, learningAnalyticsEnabled: checked })}
                   />
                   <PrivacySetting
                     title="Usage Statistics"
                     description="Share anonymous usage data to improve the platform"
-                    defaultChecked={true}
+                    checked={settings.learningAnalyticsEnabled}
+                    onCheckedChange={(checked) => setSettings({ ...settings, learningAnalyticsEnabled: checked })}
                   />
                   <PrivacySetting
                     title="Third-Party Sharing"
                     description="Allow sharing data with trusted partners"
-                    defaultChecked={false}
+                    checked={settings.learningAnalyticsEnabled}
+                    onCheckedChange={(checked) => setSettings({ ...settings, learningAnalyticsEnabled: checked })}
                   />
                 </div>
               </div>
@@ -273,19 +363,21 @@ export default function SettingsPage() {
                   <PrivacySetting
                     title="Profile Visibility"
                     description="Make your profile visible to other users"
-                    defaultChecked={true}
+                    checked={settings.learningAnalyticsEnabled}
+                    onCheckedChange={(checked) => setSettings({ ...settings, learningAnalyticsEnabled: checked })}
                   />
                   <PrivacySetting
                     title="Learning History"
                     description="Show your learning history in your public profile"
-                    defaultChecked={false}
+                    checked={settings.learningAnalyticsEnabled}
+                    onCheckedChange={(checked) => setSettings({ ...settings, learningAnalyticsEnabled: checked })}
                   />
                 </div>
               </div>
             </CardContent>
             <CardFooter>
-              <Button onClick={handleSaveSettings} disabled={isLoading}>
-                {isLoading ? "Saving..." : "Save Privacy Settings"}
+              <Button onClick={handleSaveSettings} disabled={isSaving}>
+                {isSaving ? "Saving..." : "Save Privacy Settings"}
               </Button>
             </CardFooter>
           </Card>
@@ -336,8 +428,8 @@ export default function SettingsPage() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button onClick={handleSaveSettings} disabled={isLoading}>
-                {isLoading ? "Saving..." : "Save Accessibility Settings"}
+              <Button onClick={handleSaveSettings} disabled={isSaving}>
+                {isSaving ? "Saving..." : "Save Accessibility Settings"}
               </Button>
             </CardFooter>
           </Card>
@@ -350,21 +442,25 @@ export default function SettingsPage() {
 function NotificationSetting({
   title,
   description,
-  defaultChecked = false,
+  checked,
+  onCheckedChange
 }: {
   title: string
   description: string
-  defaultChecked?: boolean
+  checked: boolean
+  onCheckedChange: (checked: boolean) => void
 }) {
-  const [checked, setChecked] = useState(defaultChecked)
-
   return (
     <div className="flex items-center justify-between space-x-2 rounded-lg border p-4">
       <div className="space-y-0.5">
         <div className="text-base">{title}</div>
         <div className="text-sm text-muted-foreground">{description}</div>
       </div>
-      <Switch checked={checked} onCheckedChange={setChecked} aria-label={`Toggle ${title} notifications`} />
+      <Switch 
+        checked={checked} 
+        onCheckedChange={onCheckedChange} 
+        aria-label={`Toggle ${title} notifications`} 
+      />
     </div>
   )
 }
@@ -372,21 +468,29 @@ function NotificationSetting({
 function PrivacySetting({
   title,
   description,
+  checked,
+  onCheckedChange,
   defaultChecked = false,
 }: {
   title: string
   description: string
+  checked?: boolean
+  onCheckedChange?: (checked: boolean) => void
   defaultChecked?: boolean
 }) {
-  const [checked, setChecked] = useState(defaultChecked)
-
+  const [isChecked, setIsChecked] = useState(defaultChecked)
+  
   return (
     <div className="flex items-center justify-between space-x-2 rounded-lg border p-4">
       <div className="space-y-0.5">
         <div className="text-base">{title}</div>
         <div className="text-sm text-muted-foreground">{description}</div>
       </div>
-      <Switch checked={checked} onCheckedChange={setChecked} aria-label={`Toggle ${title}`} />
+      <Switch 
+        checked={checked !== undefined ? checked : isChecked} 
+        onCheckedChange={onCheckedChange || setIsChecked} 
+        aria-label={`Toggle ${title}`} 
+      />
     </div>
   )
 }

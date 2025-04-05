@@ -138,7 +138,7 @@ export default function ChatPage() {
   const handleClearChat = async () => {
     // Create a new session
     try {
-      const newSession = await createChatSession.mutateAsync()
+      const newSession = await createChatSession.mutateAsync(undefined)
       setCurrentSessionId(newSession.session_id)
     } catch (error) {
       toast({
@@ -267,7 +267,7 @@ export default function ChatPage() {
                             size="icon"
                             className="h-6 w-6"
                             onClick={() => handleFeedback(message.id, "positive")}
-                            disabled={message.feedback !== undefined || addFeedback.isLoading}
+                            disabled={message.feedback !== undefined || addFeedback.isPending}
                           >
                             <ThumbsUp
                               className={`h-3 w-3 ${message.feedback === "positive" ? "fill-primary text-primary" : ""}`}
@@ -279,7 +279,7 @@ export default function ChatPage() {
                             size="icon"
                             className="h-6 w-6"
                             onClick={() => handleFeedback(message.id, "negative")}
-                            disabled={message.feedback !== undefined || addFeedback.isLoading}
+                            disabled={message.feedback !== undefined || addFeedback.isPending}
                           >
                             <ThumbsDown
                               className={`h-3 w-3 ${message.feedback === "negative" ? "fill-primary text-primary" : ""}`}
@@ -306,7 +306,7 @@ export default function ChatPage() {
               </div>
             ))}
             
-            {(isTyping || sendMessage.isLoading) && (
+            {(isTyping || sendMessage.isPending) && (
               <div className="flex justify-start">
                 <div className="flex max-w-[80%] items-start gap-3">
                   <Avatar className="mt-1">
@@ -380,7 +380,7 @@ export default function ChatPage() {
               onChange={(e) => setInputValue(e.target.value)}
               placeholder="Type your message..."
               className="flex-1"
-              disabled={sendMessage.isLoading || !currentSessionId}
+              disabled={sendMessage.isPending || !currentSessionId}
             />
 
             <Button 
@@ -398,7 +398,7 @@ export default function ChatPage() {
               type="submit"
               size="icon"
               className="h-10 w-10 rounded-full"
-              disabled={!inputValue.trim() || sendMessage.isLoading || !currentSessionId}
+              disabled={!inputValue.trim() || sendMessage.isPending || !currentSessionId}
             >
               <Send className="h-5 w-5" />
               <span className="sr-only">Send message</span>
