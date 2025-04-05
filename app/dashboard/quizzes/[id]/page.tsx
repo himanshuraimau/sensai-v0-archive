@@ -160,7 +160,7 @@ export default function QuizPage({ params }: { params: { id: string } }) {
   }
 
   const handleNext = () => {
-    if (currentQuestion < quiz.questions.length - 1) {
+    if (currentQuestion < quiz!.questions!.length - 1) {
       setCurrentQuestion((prev) => prev + 1)
     }
   }
@@ -264,7 +264,7 @@ export default function QuizPage({ params }: { params: { id: string } }) {
             variant={
               index === currentQuestion 
                 ? "default" 
-                : answers[quiz.questions[index].id] 
+                : answers[quiz.questions![index].id] 
                   ? "secondary" 
                   : "outline"
             }

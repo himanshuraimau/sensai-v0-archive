@@ -379,7 +379,7 @@ export interface UserProfile {
 
 // Get complete user profile
 export async function getUserProfile(userId: number): Promise<UserProfile | null> {
-  return await prisma.user.findUnique({
+  const user = await prisma.user.findUnique({
     where: { id: userId },
     include: {
       interests: true,
@@ -387,11 +387,44 @@ export async function getUserProfile(userId: number): Promise<UserProfile | null
       settings: true,
     }
   });
+
+  if (!user) return null;
+
+  return {
+    ...user,
+    interests: user.interests.map(i => ({
+      interest_id: i.id,
+      user_id: i.userId,
+      subject: i.subject,
+      interest_level: i.interestLevel,
+      created_at: i.createdAt.toISOString(),
+    })),
+    learningGoals: user.learningGoals.map(g => ({
+      goal_id: g.id,
+      user_id: g.userId,
+      goal_type: g.goalType,
+      description: g.description || "",
+      is_active: g.isActive,
+      created_at: g.createdAt.toISOString(),
+    })),
+    settings: user.settings ? {
+      setting_id: user.settings.id,
+      user_id: user.settings.userId,
+      theme_mode: user.settings.themeMode || "light",
+      color_theme: user.settings.colorTheme || "yellow",
+      font_size: user.settings.fontSize || "medium",
+      animation_level: user.settings.animationLevel || "standard",
+      notifications_enabled: user.settings.notificationsEnabled ?? true,
+      email_notifications_enabled: user.settings.emailNotificationsEnabled ?? true,
+      learning_analytics_enabled: user.settings.learningAnalyticsEnabled ?? true,
+      two_factor_enabled: user.settings.twoFactorEnabled ?? false,
+    } : undefined
+  };
 }
 
 // Update user profile
 export async function updateUserProfile(userId: number, profileData: Partial<UserProfile>): Promise<UserProfile | null> {
-  return await prisma.user.update({
+  const updatedUser = await prisma.user.update({
     where: { id: userId },
     data: {
       fullName: profileData.fullName,
@@ -406,5 +439,38 @@ export async function updateUserProfile(userId: number, profileData: Partial<Use
       settings: true,
     }
   });
+
+  if (!updatedUser) return null;
+
+  return {
+    ...updatedUser,
+    interests: updatedUser.interests.map(i => ({
+      interest_id: i.id,
+      user_id: i.userId,
+      subject: i.subject,
+      interest_level: i.interestLevel,
+      created_at: i.createdAt.toISOString(),
+    })),
+    learningGoals: updatedUser.learningGoals.map(g => ({
+      goal_id: g.id,
+      user_id: g.userId,
+      goal_type: g.goalType,
+      description: g.description || "",
+      is_active: g.isActive,
+      created_at: g.createdAt.toISOString(),
+    })),
+    settings: updatedUser.settings ? {
+      setting_id: updatedUser.settings.id,
+      user_id: updatedUser.settings.userId,
+      theme_mode: updatedUser.settings.themeMode || "light",
+      color_theme: updatedUser.settings.colorTheme || "yellow",
+      font_size: updatedUser.settings.fontSize || "medium",
+      animation_level: updatedUser.settings.animationLevel || "standard",
+      notifications_enabled: updatedUser.settings.notificationsEnabled ?? true,
+      email_notifications_enabled: updatedUser.settings.emailNotificationsEnabled ?? true,
+      learning_analytics_enabled: updatedUser.settings.learningAnalyticsEnabled ?? true,
+      two_factor_enabled: updatedUser.settings.twoFactorEnabled ?? false,
+    } : undefined
+  };
 }
 
