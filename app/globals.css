@@ -1,0 +1,109 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 33% 98%;
+    --foreground: 30 10% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 30 10% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 30 10% 15%;
+
+    --primary: 35 100% 60%;
+    --primary-foreground: 30 10% 10%;
+
+    --secondary: 30 30% 94%;
+    --secondary-foreground: 30 10% 15%;
+
+    --muted: 30 10% 94%;
+    --muted-foreground: 30 10% 45%;
+
+    --accent: 25 70% 60%;
+    --accent-foreground: 30 10% 10%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 30 10% 90%;
+    --input: 30 10% 90%;
+    --ring: 35 100% 60%;
+
+    --radius: 0.5rem;
+
+    /* Sidebar Variables */
+    --sidebar-background: 40 33% 98%;
+    --sidebar-foreground: 30 10% 15%;
+    --sidebar-primary: 35 100% 60%;
+    --sidebar-primary-foreground: 30 10% 10%;
+    --sidebar-accent: 30 30% 94%;
+    --sidebar-accent-foreground: 30 10% 15%;
+    --sidebar-border: 30 10% 90%;
+    --sidebar-ring: 35 100% 60%;
+  }
+
+  .dark {
+    --background: 30 15% 10%;
+    --foreground: 30 10% 95%;
+
+    --card: 30 15% 12%;
+    --card-foreground: 30 10% 95%;
+
+    --popover: 30 15% 12%;
+    --popover-foreground: 30 10% 95%;
+
+    --primary: 35 80% 50%;
+    --primary-foreground: 30 10% 10%;
+
+    --secondary: 30 15% 20%;
+    --secondary-foreground: 30 10% 95%;
+
+    --muted: 30 15% 20%;
+    --muted-foreground: 30 10% 70%;
+
+    --accent: 25 70% 45%;
+    --accent-foreground: 30 10% 10%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 30 15% 20%;
+    --input: 30 15% 20%;
+    --ring: 35 80% 50%;
+
+    /* Sidebar Variables */
+    --sidebar-background: 30 15% 12%;
+    --sidebar-foreground: 30 10% 95%;
+    --sidebar-primary: 35 80% 50%;
+    --sidebar-primary-foreground: 30 10% 10%;
+    --sidebar-accent: 30 15% 20%;
+    --sidebar-accent-foreground: 30 10% 95%;
+    --sidebar-border: 30 15% 20%;
+    --sidebar-ring: 35 80% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+.chat-bubble-user {
+  @apply bg-primary text-primary-foreground rounded-2xl rounded-tr-sm;
+}
+
+.chat-bubble-ai {
+  @apply bg-muted rounded-2xl rounded-tl-sm;
+}
+
+.gradient-bg {
+  @apply bg-gradient-to-b from-background to-background/80;
+}
+
