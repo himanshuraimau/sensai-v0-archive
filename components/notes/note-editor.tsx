@@ -125,21 +125,21 @@ export function NoteEditor({ note }: NoteEditorProps) {
   // Toggle favorite status
   const handleToggleFavorite = () => {
     toggleFavoriteMutation.mutate(
-      { noteId: note.note_id, isFavorite: !note.is_favorite },
+      note.note_id,
       {
-        onSuccess: () => {
-          toast({
-            title: note.is_favorite ? "Removed from favorites" : "Added to favorites",
-            variant: "default",
-          });
-        },
-        onError: (error) => {
-          toast({
-            title: "Error updating favorite status",
-            description: error.message,
-            variant: "destructive",
-          });
-        },
+      onSuccess: () => {
+        toast({
+        title: note.is_favorite ? "Removed from favorites" : "Added to favorites",
+        variant: "default",
+        });
+      },
+      onError: (error) => {
+        toast({
+        title: "Error updating favorite status",
+        description: error.message,
+        variant: "destructive",
+        });
+      },
       }
     );
   };

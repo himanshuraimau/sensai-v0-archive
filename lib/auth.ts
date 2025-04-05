@@ -9,7 +9,6 @@ const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key"
 const JWT_EXPIRES_IN = "7d"
 
 export interface User {
-  user_id(user_id: any, arg1: { full_name: any; bio: any; location: any; occupation: any; profile_image_url: any }): unknown
   id: number
   username: string
   email: string

@@ -1,4 +1,10 @@
-import { getDb } from "../db"
+import prisma from "../prisma"
+import { OpenAI } from "openai"
+
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+})
 
 export interface ChatSession {
   session_id: number
@@ -24,266 +30,289 @@ export interface MessageFeedback {
 }
 
 // Get all chat sessions for a user
-export function getChatSessions(userId: number): ChatSession[] {
-  const db = getDb()
-  return db
-    .prepare(`
-    SELECT * FROM chat_sessions 
-    WHERE user_id = ? 
-    ORDER BY updated_at DESC
-  `)
-    .all(userId) as ChatSession[]
+export async function getChatSessions(userId: number): Promise<ChatSession[]> {
+  const sessions = await prisma.chatSession.findMany({
+    where: { userId },
+    orderBy: { updatedAt: 'desc' }
+  })
+  
+  return sessions.map(session => ({
+    session_id: session.id,
+    user_id: session.userId,
+    title: session.title || "New Chat",
+    created_at: session.createdAt.toISOString(),
+    updated_at: session.updatedAt.toISOString()
+  }))
 }
 
 // Get a chat session by ID
-export function getChatSession(sessionId: number): ChatSession | null {
-  const db = getDb()
-  return db
-    .prepare(`
-    SELECT * FROM chat_sessions 
-    WHERE session_id = ?
-  `)
-    .get(sessionId) as ChatSession | null
+export async function getChatSession(sessionId: number): Promise<ChatSession | null> {
+  const session = await prisma.chatSession.findUnique({
+    where: { id: sessionId }
+  })
+  
+  if (!session) return null
+  
+  return {
+    session_id: session.id,
+    user_id: session.userId,
+    title: session.title || "New Chat",
+    created_at: session.createdAt.toISOString(),
+    updated_at: session.updatedAt.toISOString()
+  }
 }
 
 // Create a new chat session
-export function createChatSession(userId: number, title = "New Chat"): ChatSession {
-  const db = getDb()
-
-  const result = db
-    .prepare(`
-    INSERT INTO chat_sessions (user_id, title, created_at, updated_at)
-    VALUES (?, ?, datetime('now'), datetime('now'))
-  `)
-    .run(userId, title)
-
-  const sessionId = result.lastInsertRowid as number
-
-  return getChatSession(sessionId) as ChatSession
+export async function createChatSession(userId: number, title = "New Chat"): Promise<ChatSession> {
+  const session = await prisma.chatSession.create({
+    data: {
+      userId,
+      title
+    }
+  })
+  
+  return {
+    session_id: session.id,
+    user_id: session.userId,
+    title: session.title || "New Chat",
+    created_at: session.createdAt.toISOString(),
+    updated_at: session.updatedAt.toISOString()
+  }
 }
 
 // Update a chat session
-export function updateChatSession(sessionId: number, title: string): boolean {
-  const db = getDb()
-
-  const result = db
-    .prepare(`
-    UPDATE chat_sessions 
-    SET title = ?, updated_at = datetime('now')
-    WHERE session_id = ?
-  `)
-    .run(title, sessionId)
-
-  return result.changes > 0
+export async function updateChatSession(sessionId: number, title: string): Promise<boolean> {
+  try {
+    await prisma.chatSession.update({
+      where: { id: sessionId },
+      data: { title }
+    })
+    return true
+  } catch (error) {
+    console.error("Failed to update chat session:", error)
+    return false
+  }
 }
 
 // Delete a chat session
-export function deleteChatSession(sessionId: number): boolean {
-  const db = getDb()
-
-  // Start a transaction
-  db.prepare("BEGIN TRANSACTION").run()
-
+export async function deleteChatSession(sessionId: number): Promise<boolean> {
   try {
-    // Delete messages
-    db.prepare(`
-      DELETE FROM chat_messages 
-      WHERE session_id = ?
-    `).run(sessionId)
-
-    // Delete the session
-    const result = db
-      .prepare(`
-      DELETE FROM chat_sessions 
-      WHERE session_id = ?
-    `)
-      .run(sessionId)
-
-    db.prepare("COMMIT").run()
-
-    return result.changes > 0
+    await prisma.$transaction([
+      prisma.messageFeedback.deleteMany({
+        where: {
+          message: {
+            sessionId
+          }
+        }
+      }),
+      prisma.chatMessage.deleteMany({
+        where: { sessionId }
+      }),
+      prisma.chatSession.delete({
+        where: { id: sessionId }
+      })
+    ])
+    return true
   } catch (error) {
-    db.prepare("ROLLBACK").run()
-    throw error
+    console.error("Failed to delete chat session:", error)
+    return false
   }
 }
 
 // Get all messages for a chat session
-export function getChatMessages(sessionId: number): ChatMessage[] {
-  const db = getDb()
-  return db
-    .prepare(`
-    SELECT * FROM chat_messages 
-    WHERE session_id = ? 
-    ORDER BY created_at ASC
-  `)
-    .all(sessionId) as ChatMessage[]
+export async function getChatMessages(sessionId: number): Promise<ChatMessage[]> {
+  const messages = await prisma.chatMessage.findMany({
+    where: { sessionId },
+    orderBy: { createdAt: 'asc' }
+  })
+  
+  return messages.map(message => ({
+    message_id: message.id,
+    session_id: message.sessionId,
+    sender_type: message.senderType as "user" | "ai",
+    content: message.content,
+    created_at: message.createdAt.toISOString()
+  }))
 }
 
 // Add a message to a chat session
-export function addChatMessage(sessionId: number, senderType: "user" | "ai", content: string): ChatMessage {
-  const db = getDb()
-
+export async function addChatMessage(
+  sessionId: number, 
+  senderType: "user" | "ai", 
+  content: string
+): Promise<ChatMessage> {
   // Update the session's updated_at timestamp
-  db.prepare(`
-    UPDATE chat_sessions 
-    SET updated_at = datetime('now')
-    WHERE session_id = ?
-  `).run(sessionId)
-
+  await prisma.chatSession.update({
+    where: { id: sessionId },
+    data: { updatedAt: new Date() }
+  })
+  
   // Add the message
-  const result = db
-    .prepare(`
-    INSERT INTO chat_messages (session_id, sender_type, content, created_at)
-    VALUES (?, ?, ?, datetime('now'))
-  `)
-    .run(sessionId, senderType, content)
-
-  const messageId = result.lastInsertRowid as number
-
-  return db
-    .prepare(`
-    SELECT * FROM chat_messages 
-    WHERE message_id = ?
-  `)
-    .get(messageId) as ChatMessage
+  const message = await prisma.chatMessage.create({
+    data: {
+      sessionId,
+      senderType,
+      content
+    }
+  })
+  
+  return {
+    message_id: message.id,
+    session_id: message.sessionId,
+    sender_type: message.senderType as "user" | "ai",
+    content: message.content,
+    created_at: message.createdAt.toISOString()
+  }
 }
 
 // Add feedback to a message
-export function addMessageFeedback(messageId: number, feedbackType: "positive" | "negative"): MessageFeedback {
-  const db = getDb()
-
+export async function addMessageFeedback(
+  messageId: number, 
+  feedbackType: "positive" | "negative"
+): Promise<MessageFeedback> {
   // Check if feedback already exists
-  const existingFeedback = db
-    .prepare(`
-    SELECT * FROM message_feedback 
-    WHERE message_id = ?
-  `)
-    .get(messageId) as MessageFeedback | undefined
-
+  const existingFeedback = await prisma.messageFeedback.findUnique({
+    where: { messageId }
+  })
+  
   if (existingFeedback) {
     // Update existing feedback
-    db.prepare(`
-      UPDATE message_feedback 
-      SET feedback_type = ?
-      WHERE feedback_id = ?
-    `).run(feedbackType, existingFeedback.feedback_id)
-
+    const updatedFeedback = await prisma.messageFeedback.update({
+      where: { messageId },
+      data: { feedbackType }
+    })
+    
     return {
-      ...existingFeedback,
-      feedback_type: feedbackType,
+      feedback_id: updatedFeedback.id,
+      message_id: updatedFeedback.messageId,
+      feedback_type: updatedFeedback.feedbackType as "positive" | "negative",
+      created_at: updatedFeedback.createdAt.toISOString()
     }
   }
-
+  
   // Add new feedback
-  const result = db
-    .prepare(`
-    INSERT INTO message_feedback (message_id, feedback_type, created_at)
-    VALUES (?, ?, datetime('now'))
-  `)
-    .run(messageId, feedbackType)
-
-  const feedbackId = result.lastInsertRowid as number
-
-  return db
-    .prepare(`
-    SELECT * FROM message_feedback 
-    WHERE feedback_id = ?
-  `)
-    .get(feedbackId) as MessageFeedback
+  const feedback = await prisma.messageFeedback.create({
+    data: {
+      messageId,
+      feedbackType
+    }
+  })
+  
+  return {
+    feedback_id: feedback.id,
+    message_id: feedback.messageId,
+    feedback_type: feedback.feedbackType as "positive" | "negative",
+    created_at: feedback.createdAt.toISOString()
+  }
 }
 
 // Get feedback for a message
-export function getMessageFeedback(messageId: number): MessageFeedback | null {
-  const db = getDb()
-  return db
-    .prepare(`
-    SELECT * FROM message_feedback 
-    WHERE message_id = ?
-  `)
-    .get(messageId) as MessageFeedback | null
+export async function getMessageFeedback(messageId: number): Promise<MessageFeedback | null> {
+  const feedback = await prisma.messageFeedback.findUnique({
+    where: { messageId }
+  })
+  
+  if (!feedback) return null
+  
+  return {
+    feedback_id: feedback.id,
+    message_id: feedback.messageId,
+    feedback_type: feedback.feedbackType as "positive" | "negative",
+    created_at: feedback.createdAt.toISOString()
+  }
 }
 
 // Save a message to notes
-export function saveMessageToNotes(userId: number, messageId: number, noteTitle = "Chat Note"): number {
-  const db = getDb()
-
+export async function saveMessageToNotes(
+  userId: number, 
+  messageId: number, 
+  noteTitle = "Chat Note"
+): Promise<number> {
   // Get the message
-  const message = db
-    .prepare(`
-    SELECT * FROM chat_messages 
-    WHERE message_id = ?
-  `)
-    .get(messageId) as ChatMessage | undefined
-
+  const message = await prisma.chatMessage.findUnique({
+    where: { id: messageId }
+  })
+  
   if (!message) {
     throw new Error("Message not found")
   }
-
-  // Start a transaction
-  db.prepare("BEGIN TRANSACTION").run()
-
-  try {
+  
+  // Use a transaction to ensure consistency
+  const result = await prisma.$transaction(async (tx) => {
     // Create a new note
-    const noteResult = db
-      .prepare(`
-      INSERT INTO notes (user_id, title, content, is_favorite, is_trashed, created_at, updated_at)
-      VALUES (?, ?, ?, 0, 0, datetime('now'), datetime('now'))
-    `)
-      .run(userId, noteTitle, message.content)
-
-    const noteId = noteResult.lastInsertRowid as number
-
+    const note = await tx.note.create({
+      data: {
+        userId,
+        title: noteTitle,
+        content: message.content,
+        isFavorite: false,
+        isTrashed: false
+      }
+    })
+    
     // Create a saved response record
-    db.prepare(`
-      INSERT INTO saved_responses (user_id, message_id, note_id, created_at)
-      VALUES (?, ?, ?, datetime('now'))
-    `).run(userId, messageId, noteId)
+    await tx.savedResponse.create({
+      data: {
+        userId,
+        messageId,
+        noteId: note.id
+      }
+    })
+    
+    return note.id
+  })
+  
+  return result
+}
 
-    db.prepare("COMMIT").run()
-
-    return noteId
+// Generate AI response using OpenAI
+export async function generateAIResponse(userMessage: string): Promise<string> {
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        {
+          role: "system",
+          content: `You are an AI learning assistant. Provide helpful, educational responses to user queries.
+Focus on topics like programming, data science, machine learning, and other technical subjects.
+Format your responses using Markdown for readability:
+- Use ## for section headings
+- Use \`code\` for inline code
+- Use \`\`\` code blocks for multi-line code snippets with appropriate language tags
+- Use **bold** for emphasis
+- Use bullet points and numbered lists where appropriate
+- Use tables when presenting structured data
+Keep your responses informative, accurate, and well-structured.`
+        },
+        { role: "user", content: userMessage }
+      ],
+      max_tokens: 500,
+      temperature: 0.7,
+    })
+    
+    return completion.choices[0]?.message?.content || 
+      "I'm sorry, I couldn't generate a response. Please try again."
+    
   } catch (error) {
-    db.prepare("ROLLBACK").run()
-    throw error
+    console.error("Error generating AI response:", error)
+    return "I apologize, but I'm having trouble processing your request right now. Please try again later."
   }
 }
 
-// Mock AI response generator
-export function generateAIResponse(userMessage: string): string {
-  // Simple keyword-based responses
-  const lowerMessage = userMessage.toLowerCase()
-
-  if (lowerMessage.includes("hello") || lowerMessage.includes("hi")) {
-    return "Hello! I'm your AI learning assistant. How can I help you today?"
-  }
-
-  if (lowerMessage.includes("machine learning")) {
-    return "Machine Learning is a subset of AI that focuses on developing systems that can learn from data. Would you like to know more about specific ML concepts like supervised learning, unsupervised learning, or reinforcement learning?"
-  }
-
-  if (lowerMessage.includes("javascript")) {
-    return "JavaScript is a versatile programming language primarily used for web development. It allows you to add interactive elements to websites. Would you like to learn about JavaScript basics, frameworks like React or Vue, or more advanced concepts?"
-  }
-
-  if (lowerMessage.includes("quiz") || lowerMessage.includes("test")) {
-    return "Quizzes are a great way to test your knowledge. We have quizzes available for all subjects. Would you like me to recommend one based on your recent learning? I can suggest quizzes on programming fundamentals, data science, or web development."
-  }
-
-  if (lowerMessage.includes("data visualization")) {
-    return "Data visualization is the graphical representation of information and data. Some popular tools for data visualization include Tableau, Power BI, D3.js, and Python libraries like Matplotlib and Seaborn. What specific aspect of data visualization are you interested in?"
-  }
-
-  if (lowerMessage.includes("react")) {
-    return "React is a popular JavaScript library for building user interfaces. It was developed by Facebook and is widely used for creating single-page applications. Would you like to learn about React components, hooks, state management, or how to get started with React?"
-  }
-
-  if (lowerMessage.includes("neural network")) {
-    \
-    return 'Neural networks are computing systems inspired by the biological neural networks in human brains. They consist of layers of interconnected nodes or "neurons" that can learn patterns from data. Would you like to learn about different types of neural networks like CNNs, RNNs, or how they work?";
-  }
-
-  // Default response for other queries
-  return "That's an interesting topic. Would you like me to provide more information or suggest some learning resources about it? I can help with programming, data science, web development, and many other technical subjects."
+// Process user message and get AI response
+export async function processUserMessage(
+  sessionId: number, 
+  content: string
+): Promise<{ userMessage: ChatMessage; aiMessage: ChatMessage }> {
+  // Add user message
+  const userMessage = await addChatMessage(sessionId, "user", content)
+  
+  // Generate AI response
+  const aiResponse = await generateAIResponse(content)
+  
+  // Add AI message
+  const aiMessage = await addChatMessage(sessionId, "ai", aiResponse)
+  
+  return { userMessage, aiMessage }
 }
 

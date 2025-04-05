@@ -13,6 +13,7 @@ export interface NoteFolder {
 }
 
 export interface NoteTag {
+  color: undefined
   tag_id: number
   user_id: number
   name: string

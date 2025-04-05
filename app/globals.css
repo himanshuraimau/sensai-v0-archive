@@ -43,6 +43,8 @@
     --sidebar-accent-foreground: 30 10% 15%;
     --sidebar-border: 30 10% 90%;
     --sidebar-ring: 35 100% 60%;
+
+    --code-bg: rgba(40, 42, 54, 0.85);
   }
 
   .dark {
@@ -83,6 +85,8 @@
     --sidebar-accent-foreground: 30 10% 95%;
     --sidebar-border: 30 15% 20%;
     --sidebar-ring: 35 80% 50%;
+
+    --code-bg: rgba(40, 42, 54, 1);
   }
 }
 
@@ -93,6 +97,36 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Markdown Styles */
+.markdown-content {
+  @apply text-foreground;
+}
+
+.markdown-content p {
+  @apply my-2;
+}
+
+.markdown-content img {
+  @apply max-w-full h-auto my-4 rounded-md;
+}
+
+.inline-code {
+  @apply px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-sm font-mono;
+}
+
+/* Tables within markdown */
+.markdown-content table {
+  @apply w-full border-collapse my-4;
+}
+
+.markdown-content table th {
+  @apply bg-muted px-4 py-2 text-left font-semibold border border-border;
+}
+
+.markdown-content table td {
+  @apply px-4 py-2 border border-border;
 }
 
 .chat-bubble-user {

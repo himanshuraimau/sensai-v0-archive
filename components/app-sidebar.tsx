@@ -105,7 +105,7 @@ export function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              <SidebarMenuItem>
+              {/* <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/dashboard/notes")} tooltip="Notes">
                   <Link href="/dashboard/notes">
                     <FileEdit />
@@ -120,7 +120,7 @@ export function AppSidebar() {
                     <span>Organizer</span>
                   </Link>
                 </SidebarMenuButton>
-              </SidebarMenuItem>
+              </SidebarMenuItem> */}
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/dashboard/quizzes")} tooltip="Quizzes">
                   <Link href="/dashboard/quizzes">

@@ -1,74 +1,58 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { withAuth } from "@/lib/auth"
-import { getChatSession, getChatMessages, addChatMessage, generateAIResponse } from "@/lib/models/chat"
+import { getChatSession, getChatMessages, processUserMessage } from "@/lib/models/chat"
 
-// Get all messages for a chat session
 export const GET = withAuth(async (req: NextRequest, user) => {
   try {
-    const parts = req.url.split("/")
-    const sessionId = Number.parseInt(parts[parts.length - 2])
-
-    const session = getChatSession(sessionId)
-
-    if (!session) {
-      return NextResponse.json({ error: "Chat session not found" }, { status: 404 })
+    const sessionId = Number(req.url.split('/').slice(-2)[0])
+    if (isNaN(sessionId)) {
+      return NextResponse.json({ error: "Invalid session ID" }, { status: 400 })
     }
-
-    // Check if the session belongs to the user
-    if (session.user_id !== user.user_id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
+    
+    const session = await getChatSession(sessionId)
+    if (!session || session.user_id !== user.id) {
+      return NextResponse.json({ error: "Session not found" }, { status: 404 })
     }
-
-    const messages = getChatMessages(sessionId)
-
+    
+    const messages = await getChatMessages(sessionId)
     return NextResponse.json({ messages })
   } catch (error) {
     console.error("Error fetching chat messages:", error)
-    return NextResponse.json({ error: "Failed to fetch chat messages" }, { status: 500 })
+    return NextResponse.json(
+      { error: "Failed to fetch chat messages" },
+      { status: 500 }
+    )
   }
 })
 
-// Add a message to a chat session
 export const POST = withAuth(async (req: NextRequest, user) => {
   try {
-    const parts = req.url.split("/")
-    const sessionId = Number.parseInt(parts[parts.length - 2])
-    const { content } = await req.json()
-
-    if (!content) {
+    const sessionId = Number(req.url.split('/').slice(-2)[0])
+    if (isNaN(sessionId)) {
+      return NextResponse.json({ error: "Invalid session ID" }, { status: 400 })
+    }
+    
+    const session = await getChatSession(sessionId)
+    if (!session || session.user_id !== user.id) {
+      return NextResponse.json({ error: "Session not found" }, { status: 404 })
+    }
+    
+    const body = await req.json()
+    const { content } = body
+    
+    if (!content || typeof content !== "string") {
       return NextResponse.json({ error: "Message content is required" }, { status: 400 })
     }
-
-    const session = getChatSession(sessionId)
-
-    if (!session) {
-      return NextResponse.json({ error: "Chat session not found" }, { status: 404 })
-    }
-
-    // Check if the session belongs to the user
-    if (session.user_id !== user.user_id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
-    }
-
-    // Add the user message
-    const userMessage = addChatMessage(sessionId, "user", content)
-
-    // Generate AI response
-    const aiResponse = generateAIResponse(content)
-
-    // Add the AI message
-    const aiMessage = addChatMessage(sessionId, "ai", aiResponse)
-
-    return NextResponse.json(
-      {
-        userMessage,
-        aiMessage,
-      },
-      { status: 201 },
-    )
+    
+    // This will add the user message and generate/add the AI response
+    const result = await processUserMessage(sessionId, content)
+    
+    return NextResponse.json(result)
   } catch (error) {
-    console.error("Error adding chat message:", error)
-    return NextResponse.json({ error: "Failed to add chat message" }, { status: 500 })
+    console.error("Error processing chat message:", error)
+    return NextResponse.json(
+      { error: "Failed to process message" },
+      { status: 500 }
+    )
   }
 })
-
