@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -22,7 +21,7 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Progress } from "@/components/ui/progress"
 
-const files = [
+const initialFiles = [
   {
     id: "1",
     name: "JavaScript Notes.pdf",
@@ -68,6 +67,8 @@ const files = [
 export default function FilesPage() {
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [fileList, setFileList] = useState(initialFiles)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
@@ -81,8 +82,24 @@ export default function FilesPage() {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     setIsDragging(false)
+    const droppedFiles = e.dataTransfer.files
+    if (droppedFiles.length) {
+      uploadFiles(droppedFiles)
+    }
+  }
 
-    // Simulate file upload
+  const handleFileSelectClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = e.target.files
+    if (selectedFiles) {
+      uploadFiles(selectedFiles)
+    }
+  }
+
+  const uploadFiles = (filesToUpload: FileList) => {
     setUploadProgress(0)
     const interval = setInterval(() => {
       setUploadProgress((prev) => {
@@ -90,27 +107,35 @@ export default function FilesPage() {
         if (prev >= 100) {
           clearInterval(interval)
           setTimeout(() => setUploadProgress(null), 1000)
+
+          const newFiles = Array.from(filesToUpload).map((f, index) => ({
+            id: `${Date.now()}-${index}`,
+            name: f.name,
+            type: getFileType(f),
+            size: formatFileSize(f.size),
+            uploadDate: "Just now",
+            category: "Uncategorized",
+          }))
+          setFileList((prev) => [...newFiles, ...prev])
           return 100
         }
-        return prev + 5
+        return prev + 10
       })
     }, 100)
   }
 
-  const handleFileUpload = () => {
-    // Simulate file upload
-    setUploadProgress(0)
-    const interval = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev === null) return 0
-        if (prev >= 100) {
-          clearInterval(interval)
-          setTimeout(() => setUploadProgress(null), 1000)
-          return 100
-        }
-        return prev + 5
-      })
-    }, 100)
+  const getFileType = (file: File) => {
+    if (file.type.includes("pdf")) return "pdf"
+    if (file.type.includes("zip")) return "zip"
+    if (file.type.includes("image")) return "image"
+    if (file.type.includes("text")) return "text"
+    return "unknown"
+  }
+
+  const formatFileSize = (size: number) => {
+    const kb = size / 1024
+    if (kb < 1024) return `${kb.toFixed(1)} KB`
+    return `${(kb / 1024).toFixed(1)} MB`
   }
 
   return (
@@ -128,7 +153,6 @@ export default function FilesPage() {
         </TabsList>
 
         <TabsContent value="all" className="space-y-6">
-          {/* Upload Area */}
           <Card
             className={`border-2 border-dashed transition-colors ${
               isDragging ? "border-primary bg-primary/5" : "border-border"
@@ -141,7 +165,14 @@ export default function FilesPage() {
               <Upload className="mb-4 h-10 w-10 text-muted-foreground" />
               <h3 className="mb-1 text-lg font-medium">Upload Files</h3>
               <p className="mb-4 text-sm text-muted-foreground">Drag and drop files here, or click to browse</p>
-              <Button onClick={handleFileUpload}>Select Files</Button>
+              <Button onClick={handleFileSelectClick}>Select Files</Button>
+              <input
+                type="file"
+                multiple
+                ref={fileInputRef}
+                className="hidden"
+                onChange={handleFilesSelected}
+              />
               {uploadProgress !== null && (
                 <div className="mt-4 w-full max-w-xs space-y-2">
                   <Progress value={uploadProgress} />
@@ -151,7 +182,6 @@ export default function FilesPage() {
             </CardContent>
           </Card>
 
-          {/* Files List */}
           <Card>
             <CardHeader>
               <CardTitle>Your Files</CardTitle>
@@ -159,7 +189,7 @@ export default function FilesPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {files.map((file) => (
+                {fileList.map((file) => (
                   <FileItem key={file.id} file={file} />
                 ))}
               </div>
@@ -175,12 +205,9 @@ export default function FilesPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {files
-                  .filter(
-                    (file) =>
-                      file.uploadDate === "Today" ||
-                      file.uploadDate === "2 days ago" ||
-                      file.uploadDate === "3 days ago",
+                {fileList
+                  .filter((file) =>
+                    ["Today", "2 days ago", "3 days ago", "Just now"].includes(file.uploadDate)
                   )
                   .map((file) => (
                     <FileItem key={file.id} file={file} />
@@ -192,10 +219,11 @@ export default function FilesPage() {
 
         <TabsContent value="categories" className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2">
-            <CategoryCard title="Programming" count={2} icon={<FileText className="h-5 w-5" />} />
-            <CategoryCard title="Data Science" count={1} icon={<FileArchive className="h-5 w-5" />} />
-            <CategoryCard title="Web Development" count={2} icon={<FileImage className="h-5 w-5" />} />
-            <CategoryCard title="Machine Learning" count={1} icon={<File className="h-5 w-5" />} />
+            <CategoryCard title="Programming" count={fileList.filter(f => f.category === "Programming").length} icon={<FileText className="h-5 w-5" />} />
+            <CategoryCard title="Data Science" count={fileList.filter(f => f.category === "Data Science").length} icon={<FileArchive className="h-5 w-5" />} />
+            <CategoryCard title="Web Development" count={fileList.filter(f => f.category === "Web Development").length} icon={<FileImage className="h-5 w-5" />} />
+            <CategoryCard title="Machine Learning" count={fileList.filter(f => f.category === "Machine Learning").length} icon={<File className="h-5 w-5" />} />
+            <CategoryCard title="Uncategorized" count={fileList.filter(f => f.category === "Uncategorized").length} icon={<File className="h-5 w-5" />} />
           </div>
         </TabsContent>
       </Tabs>
@@ -203,7 +231,7 @@ export default function FilesPage() {
   )
 }
 
-function FileItem({ file }: { file: (typeof files)[0] }) {
+function FileItem({ file }: { file: (typeof initialFiles)[0] }) {
   const getFileIcon = () => {
     switch (file.type) {
       case "pdf":
@@ -287,4 +315,3 @@ function CategoryCard({
     </Card>
   )
 }
-
