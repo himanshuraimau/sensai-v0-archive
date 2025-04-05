@@ -4,19 +4,32 @@ import type React from "react"
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Brain, ArrowLeft, Eye, EyeOff, CheckCircle, XCircle } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { useAuth } from "@/lib/hooks/use-auth"
+import { useToast } from "@/hooks/use-toast"
 
 export default function SignupPage() {
   const router = useRouter()
-  const [isLoading, setIsLoading] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
+  const { register, user, loading, error } = useAuth()
+  const { toast } = useToast()
+  const [username, setUsername] = useState("")
+  const [email, setEmail] = useState("")
+  const [fullName, setFullName] = useState("")
   const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      router.push("/dashboard")
+    }
+  }, [user, router])
 
   const passwordStrength = {
     hasMinLength: password.length >= 8,
@@ -30,13 +43,36 @@ export default function SignupPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
 
-    // Simulate account creation
-    setTimeout(() => {
-      setIsLoading(false)
-      router.push("/onboarding")
-    }, 1500)
+    if (!isPasswordStrong) {
+      toast({
+        title: "Weak password",
+        description: "Please ensure your password meets all the requirements.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      await register({
+        username,
+        email,
+        password,
+        full_name: fullName,
+      })
+      
+      toast({
+        title: "Account created",
+        description: "Your account has been created successfully.",
+        variant: "default",
+      })
+    } catch (err: any) {
+      toast({
+        title: "Registration failed",
+        description: err.message || "Please check your information and try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   return (
@@ -61,13 +97,37 @@ export default function SignupPage() {
           </CardHeader>
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4">
+              {error && <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">{error}</div>}
               <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <Input id="name" placeholder="John Doe" required />
+                <Label htmlFor="fullName">Full Name</Label>
+                <Input
+                  id="fullName"
+                  placeholder="John Doe"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  placeholder="johndoe"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="name@example.com" required />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="name@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
@@ -125,8 +185,8 @@ export default function SignupPage() {
               </div>
             </CardContent>
             <CardFooter className="flex flex-col space-y-4">
-              <Button type="submit" className="w-full" disabled={isLoading || !isPasswordStrong}>
-                {isLoading ? "Creating account..." : "Create account"}
+              <Button type="submit" className="w-full" disabled={loading || !isPasswordStrong}>
+                {loading ? "Creating account..." : "Create account"}
               </Button>
               <div className="text-center text-sm">
                 Already have an account?{" "}

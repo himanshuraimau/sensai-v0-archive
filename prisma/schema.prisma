@@ -1,0 +1,634 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  seed = "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User Management
+model User {
+  id                Int                 @id @default(autoincrement()) @map("user_id")
+  username          String              @unique @db.VarChar(50)
+  email             String              @unique @db.VarChar(255)
+  passwordHash      String              @map("password_hash") @db.VarChar(255)
+  fullName          String              @map("full_name") @db.VarChar(100)
+  bio               String?
+  location          String?             @db.VarChar(100)
+  occupation        String?             @db.VarChar(100)
+  profileImageUrl   String?             @map("profile_image_url") @db.VarChar(255)
+  createdAt         DateTime            @default(now()) @map("created_at")
+  lastLogin         DateTime?           @map("last_login")
+  isActive          Boolean             @default(true) @map("is_active")
+  isVerified        Boolean             @default(false) @map("is_verified")
+  
+  // Relations
+  settings          UserSettings?
+  interests         UserInterest[]
+  learningGoals     UserLearningGoal[]
+  authTokens        AuthToken[]
+  loginAttempts     LoginAttempt[]
+  noteFolders       NoteFolder[]
+  noteTags          NoteTag[]
+  notes             Note[]
+  chatSessions      ChatSession[]
+  taskCategories    TaskCategory[]
+  tasks             Task[]
+  calendarEvents    CalendarEvent[]
+  learningStreak    LearningStreak?
+  dailyActivities   DailyActivity[]
+  achievements      UserAchievement[]
+  subjectProgress   SubjectProgress[]
+  contentProgress   ContentProgress[]
+  files             UserFile[]
+  fileTags          FileTag[]
+  recommendations   UserRecommendation[]
+  interactions      ContentInteraction[]
+  notifications     UserNotification[]
+  notificationSettings NotificationSetting[]
+
+  @@map("users")
+  SavedResponse SavedResponse[]
+}
+
+model UserSettings {
+  id                    Int      @id @default(autoincrement()) @map("setting_id")
+  userId                Int      @unique @map("user_id")
+  themeMode             String?  @default("light") @map("theme_mode") @db.VarChar(20)
+  colorTheme            String?  @default("yellow") @map("color_theme") @db.VarChar(20)
+  fontSize              String?  @default("medium") @map("font_size") @db.VarChar(20)
+  animationLevel        String?  @default("standard") @map("animation_level") @db.VarChar(20)
+  notificationsEnabled  Boolean? @default(true) @map("notifications_enabled")
+  emailNotificationsEnabled Boolean? @default(true) @map("email_notifications_enabled")
+  learningAnalyticsEnabled Boolean? @default(true) @map("learning_analytics_enabled")
+  twoFactorEnabled      Boolean? @default(false) @map("two_factor_enabled")
+  
+  // Relations
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+// Notes System
+model NoteFolder {
+  id              Int          @id @default(autoincrement()) @map("folder_id")
+  userId          Int          @map("user_id")
+  name            String       @db.VarChar(100)
+  iconName        String?      @map("icon_name") @db.VarChar(50)
+  parentFolderId  Int?         @map("parent_folder_id")
+  isDefault       Boolean      @default(false) @map("is_default")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @default(now()) @map("updated_at")
+  
+  // Relations
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parentFolder    NoteFolder?  @relation("FolderToSubFolder", fields: [parentFolderId], references: [id], onDelete: SetNull)
+  subFolders      NoteFolder[] @relation("FolderToSubFolder")
+  notes           Note[]
+
+  @@map("note_folders")
+}
+
+model NoteTag {
+  id          Int               @id @default(autoincrement()) @map("tag_id")
+  userId      Int               @map("user_id")
+  name        String            @db.VarChar(50)
+  colorCode   String            @map("color_code") @db.VarChar(20)
+  createdAt   DateTime          @default(now()) @map("created_at")
+  
+  // Relations
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notes       NoteTagRelation[]
+
+  @@unique([userId, name])
+  @@map("note_tags")
+}
+
+model Note {
+  id          Int               @id @default(autoincrement()) @map("note_id")
+  userId      Int               @map("user_id")
+  title       String            @db.VarChar(255)
+  content     String?
+  folderId    Int?              @map("folder_id")
+  isFavorite  Boolean           @default(false) @map("is_favorite")
+  isTrashed   Boolean           @default(false) @map("is_trashed")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @default(now()) @map("updated_at")
+  
+  // Relations
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folder      NoteFolder?       @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  tags        NoteTagRelation[]
+  versions    NoteVersion[]
+  savedResponses SavedResponse[]
+
+  @@map("notes")
+}
+
+model NoteTagRelation {
+  id        Int       @id @default(autoincrement()) @map("relation_id")
+  noteId    Int       @map("note_id")
+  tagId     Int       @map("tag_id")
+  
+  // Relations
+  note      Note      @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  tag       NoteTag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([noteId, tagId])
+  @@map("note_tag_relations")
+}
+
+model NoteVersion {
+  id        Int       @id @default(autoincrement()) @map("version_id")
+  noteId    Int       @map("note_id")
+  content   String
+  createdAt DateTime  @default(now()) @map("created_at")
+  
+  // Relations
+  note      Note      @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@map("note_versions")
+}
+
+// Chat System
+model ChatSession {
+  id        Int           @id @default(autoincrement()) @map("session_id")
+  userId    Int           @map("user_id")
+  title     String?       @db.VarChar(255)
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @default(now()) @map("updated_at")
+  
+  // Relations
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  ChatMessage[]
+
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id            Int             @id @default(autoincrement()) @map("message_id")
+  sessionId     Int             @map("session_id")
+  senderType    String          @map("sender_type") @db.VarChar(10)
+  content       String
+  createdAt     DateTime        @default(now()) @map("created_at")
+  
+  // Relations
+  session       ChatSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  feedback      MessageFeedback?
+  savedResponses SavedResponse[]
+
+  @@map("chat_messages")
+}
+
+model MessageFeedback {
+  id           Int         @id @default(autoincrement()) @map("feedback_id")
+  messageId    Int         @unique @map("message_id")
+  feedbackType String      @map("feedback_type") @db.VarChar(20)
+  createdAt    DateTime    @default(now()) @map("created_at")
+  
+  // Relations
+  message      ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@map("message_feedback")
+}
+
+model SavedResponse {
+  id        Int         @id @default(autoincrement()) @map("saved_id")
+  userId    Int         @map("user_id")
+  messageId Int         @map("message_id")
+  noteId    Int?        @map("note_id")
+  createdAt DateTime    @default(now()) @map("created_at")
+  
+  // Relations
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  note      Note?       @relation(fields: [noteId], references: [id], onDelete: SetNull)
+
+  @@map("saved_responses")
+}
+
+// Add remaining models as needed...
+// For brevity, I've focused on the Note-related models
+// which appear to be the most relevant for this task
+
+model TaskCategory {
+  id          Int       @id @default(autoincrement()) @map("category_id")
+  userId      Int       @map("user_id")
+  name        String    @db.VarChar(50)
+  colorCode   String    @map("color_code") @db.VarChar(20)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  
+  // Relations
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks       Task[]
+  events      CalendarEvent[]
+
+  @@unique([userId, name])
+  @@map("task_categories")
+}
+
+model Task {
+  id          Int                 @id @default(autoincrement()) @map("task_id")
+  userId      Int                 @map("user_id")
+  title       String              @db.VarChar(255)
+  description String?
+  categoryId  Int?                @map("category_id")
+  dueDate     DateTime?           @map("due_date")
+  isCompleted Boolean             @default(false) @map("is_completed")
+  priority    String              @default("medium") @db.VarChar(20)
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @default(now()) @map("updated_at")
+  
+  // Relations
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category    TaskCategory?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  events      TaskEventRelation[]
+
+  @@map("tasks")
+}
+
+model CalendarEvent {
+  id                Int                 @id @default(autoincrement()) @map("event_id")
+  userId            Int                 @map("user_id")
+  title             String              @db.VarChar(255)
+  description       String?
+  categoryId        Int?                @map("category_id")
+  startTime         DateTime            @map("start_time")
+  endTime           DateTime?           @map("end_time")
+  isAllDay          Boolean             @default(false) @map("is_all_day")
+  location          String?             @db.VarChar(255)
+  isRecurring       Boolean             @default(false) @map("is_recurring")
+  recurrencePattern String?             @map("recurrence_pattern") @db.VarChar(50)
+  recurrenceEndDate DateTime?           @map("recurrence_end_date")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @default(now()) @map("updated_at")
+  
+  // Relations
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category          TaskCategory?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  tasks             TaskEventRelation[]
+
+  @@map("calendar_events")
+}
+
+model TaskEventRelation {
+  id        Int           @id @default(autoincrement()) @map("relation_id")
+  taskId    Int           @map("task_id")
+  eventId   Int           @map("event_id")
+  
+  // Relations
+  task      Task          @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  event     CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, eventId])
+  @@map("task_event_relations")
+}
+
+// Add more models as necessary...
+// For brevity, I'm focusing on the most essential models
+
+model LearningStreak {
+  id                Int       @id @default(autoincrement()) @map("streak_id")
+  userId            Int       @unique @map("user_id")
+  currentStreak     Int       @default(0) @map("current_streak")
+  longestStreak     Int       @default(0) @map("longest_streak")
+  lastActivityDate  DateTime? @map("last_activity_date") @db.Date
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @default(now()) @map("updated_at")
+  
+  // Relations
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("learning_streaks")
+}
+
+model DailyActivity {
+  id               Int      @id @default(autoincrement()) @map("activity_id")
+  userId           Int      @map("user_id")
+  activityDate     DateTime @map("activity_date") @db.Date
+  studyTimeMinutes Int      @default(0) @map("study_time_minutes")
+  contentViewed    Int      @default(0) @map("content_viewed")
+  quizzesCompleted Int      @default(0) @map("quizzes_completed")
+  notesCreated     Int      @default(0) @map("notes_created")
+  
+  // Relations
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, activityDate])
+  @@map("daily_activities")
+}
+
+// Add more models as needed...
+// This focuses on the essential models related to notes and users
+
+model AuthToken {
+  id          Int       @id @default(autoincrement()) @map("token_id")
+  userId      Int       @map("user_id")
+  tokenHash   String    @map("token_hash") @db.VarChar(255)
+  tokenType   String    @map("token_type") @db.VarChar(20)
+  expiresAt   DateTime  @map("expires_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  isRevoked   Boolean   @default(false) @map("is_revoked")
+  
+  // Relations
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("auth_tokens")
+}
+
+model LoginAttempt {
+  id           Int       @id @default(autoincrement()) @map("attempt_id")
+  userId       Int?      @map("user_id")
+  ipAddress    String    @map("ip_address") @db.VarChar(45)
+  userAgent    String?   @map("user_agent")
+  success      Boolean
+  attemptedAt  DateTime  @default(now()) @map("attempted_at")
+  
+  // Relations
+  user         User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("login_attempts")
+}
+
+// Add remaining models as needed...
+// This is just a subset of the full schema to demonstrate the pattern
+
+model UserInterest {
+  id            Int      @id @default(autoincrement()) @map("interest_id")
+  userId        Int      @map("user_id")
+  subject       String   @db.VarChar(50)
+  interestLevel Int      @default(5) @map("interest_level")
+  createdAt     DateTime @default(now()) @map("created_at")
+  
+  // Relations
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, subject])
+  @@map("user_interests")
+}
+
+model UserLearningGoal {
+  id          Int       @id @default(autoincrement()) @map("goal_id")
+  userId      Int       @map("user_id")
+  goalType    String    @map("goal_type") @db.VarChar(50)
+  description String?
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  
+  // Relations
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_learning_goals")
+}
+
+model AchievementType {
+  id           Int               @id @default(autoincrement()) @map("type_id")
+  name         String            @unique @db.VarChar(100)
+  description  String?
+  iconName     String?           @map("icon_name") @db.VarChar(50)
+  points       Int               @default(10)
+  
+  // Relations
+  achievements UserAchievement[]
+  
+  @@map("achievement_types")
+}
+
+model UserAchievement {
+  id                Int             @id @default(autoincrement()) @map("achievement_id")
+  userId            Int             @map("user_id")
+  achievementTypeId Int             @map("achievement_type_id")
+  progress          Int             @default(0)
+  maxProgress       Int             @map("max_progress")
+  isCompleted       Boolean         @default(false) @map("is_completed")
+  completedAt       DateTime?       @map("completed_at")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @default(now()) @map("updated_at")
+  
+  // Relations
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementType   AchievementType @relation(fields: [achievementTypeId], references: [id])
+
+  @@unique([userId, achievementTypeId])
+  @@map("user_achievements")
+}
+
+model Subject {
+  id                Int                @id @default(autoincrement()) @map("subject_id")
+  name              String             @unique @db.VarChar(100)
+  description       String?
+  iconName          String?            @map("icon_name") @db.VarChar(50)
+  colorCode         String?            @map("color_code") @db.VarChar(20)
+  parentSubjectId   Int?               @map("parent_subject_id")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  
+  // Relations
+  parentSubject     Subject?           @relation("SubjectToSubSubject", fields: [parentSubjectId], references: [id], onDelete: SetNull)
+  childSubjects     Subject[]          @relation("SubjectToSubSubject")
+  subjectProgress   SubjectProgress[]
+  
+  @@map("subjects")
+}
+
+model SubjectProgress {
+  id                  Int       @id @default(autoincrement()) @map("progress_id")
+  userId              Int       @map("user_id")
+  subjectId           Int       @map("subject_id")
+  progressPercentage  Int       @default(0) @map("progress_percentage")
+  timeSpentMinutes    Int       @default(0) @map("time_spent_minutes")
+  contentCompleted    Int       @default(0) @map("content_completed")
+  quizzesCompleted    Int       @default(0) @map("quizzes_completed")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @default(now()) @map("updated_at")
+  
+  // Relations
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject             Subject   @relation(fields: [subjectId], references: [id])
+
+  @@unique([userId, subjectId])
+  @@map("subject_progress")
+}
+
+model LearningContent {
+  id                Int                 @id @default(autoincrement()) @map("content_id")
+  title             String              @db.VarChar(255)
+  description       String?
+  contentTypeId     Int                 @map("content_type_id")
+  subjectId         Int                 @map("subject_id")
+  difficultyLevel   String              @map("difficulty_level") @db.VarChar(20)
+  estimatedDuration Int?                @map("estimated_duration")
+  contentUrl        String?             @map("content_url") @db.VarChar(255)
+  thumbnailUrl      String?             @map("thumbnail_url") @db.VarChar(255)
+  authorId          Int?                @map("author_id")
+  isPremium         Boolean             @default(false) @map("is_premium")
+  isPublished       Boolean             @default(true) @map("is_published")
+  viewCount         Int                 @default(0) @map("view_count")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @default(now()) @map("updated_at")
+  
+  // Relations
+  progress          ContentProgress[]
+  interactions      ContentInteraction[]
+  recommendations   UserRecommendation[]
+  
+  @@map("learning_content")
+}
+
+model ContentProgress {
+  id                  Int             @id @default(autoincrement()) @map("progress_id")
+  userId              Int             @map("user_id")
+  contentId           Int             @map("content_id")
+  progressPercentage  Int             @default(0) @map("progress_percentage")
+  lastPosition        String?         @map("last_position") @db.VarChar(50)
+  completed           Boolean         @default(false)
+  completedAt         DateTime?       @map("completed_at")
+  createdAt           DateTime        @default(now()) @map("created_at")
+  updatedAt           DateTime        @default(now()) @map("updated_at")
+  
+  // Relations
+  user                User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content             LearningContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, contentId])
+  @@map("content_progress")
+}
+
+model FileCategory {
+  id          Int        @id @default(autoincrement()) @map("category_id")
+  name        String     @unique @db.VarChar(50)
+  description String?
+  
+  // Relations
+  files       UserFile[]
+  
+  @@map("file_categories")
+}
+
+model UserFile {
+  id                Int               @id @default(autoincrement()) @map("file_id")
+  userId            Int               @map("user_id")
+  filename          String            @db.VarChar(255)
+  originalFilename  String            @map("original_filename") @db.VarChar(255)
+  filePath          String            @map("file_path") @db.VarChar(255)
+  fileSize          Int               @map("file_size")
+  mimeType          String            @map("mime_type") @db.VarChar(100)
+  categoryId        Int?              @map("category_id")
+  isPublic          Boolean           @default(false) @map("is_public")
+  uploadDate        DateTime          @default(now()) @map("upload_date")
+  lastAccessed      DateTime?         @map("last_accessed")
+  
+  // Relations
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category          FileCategory?     @relation(fields: [categoryId], references: [id])
+  tagRelations      FileTagRelation[]
+  
+  @@map("user_files")
+}
+
+model FileTag {
+  id          Int               @id @default(autoincrement()) @map("tag_id")
+  userId      Int               @map("user_id")
+  name        String            @db.VarChar(50)
+  colorCode   String?           @map("color_code") @db.VarChar(20)
+  
+  // Relations
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  files       FileTagRelation[]
+
+  @@unique([userId, name])
+  @@map("file_tags")
+}
+
+model FileTagRelation {
+  id        Int      @id @default(autoincrement()) @map("relation_id")
+  fileId    Int      @map("file_id")
+  tagId     Int      @map("tag_id")
+  
+  // Relations
+  file      UserFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  tag       FileTag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([fileId, tagId])
+  @@map("file_tag_relations")
+}
+
+model UserRecommendation {
+  id                  Int             @id @default(autoincrement()) @map("recommendation_id")
+  userId              Int             @map("user_id")
+  contentId           Int             @map("content_id")
+  recommendationScore Float           @map("recommendation_score")
+  reason              String?         @db.VarChar(100)
+  isViewed            Boolean         @default(false) @map("is_viewed")
+  createdAt           DateTime        @default(now()) @map("created_at")
+  
+  // Relations
+  user                User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content             LearningContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  
+  @@map("user_recommendations")
+}
+
+model ContentInteraction {
+  id              Int             @id @default(autoincrement()) @map("interaction_id")
+  userId          Int             @map("user_id")
+  contentId       Int             @map("content_id")
+  interactionType String          @map("interaction_type") @db.VarChar(50)
+  interactionTime DateTime        @default(now()) @map("interaction_time")
+  
+  // Relations
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content         LearningContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  
+  @@map("content_interactions")
+}
+
+model NotificationType {
+  id                    Int                   @id @default(autoincrement()) @map("type_id")
+  name                  String                @unique @db.VarChar(50)
+  description           String?
+  iconName              String?               @map("icon_name") @db.VarChar(50)
+  
+  // Relations
+  notifications         UserNotification[]
+  notificationSettings  NotificationSetting[]
+  
+  @@map("notification_types")
+}
+
+model UserNotification {
+  id            Int               @id @default(autoincrement()) @map("notification_id")
+  userId        Int               @map("user_id")
+  typeId        Int               @map("type_id")
+  title         String            @db.VarChar(255)
+  message       String
+  isRead        Boolean           @default(false) @map("is_read")
+  actionUrl     String?           @map("action_url") @db.VarChar(255)
+  createdAt     DateTime          @default(now()) @map("created_at")
+  
+  // Relations
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type          NotificationType  @relation(fields: [typeId], references: [id])
+  
+  @@map("user_notifications")
+}
+
+model NotificationSetting {
+  id            Int               @id @default(autoincrement()) @map("setting_id")
+  userId        Int               @map("user_id")
+  typeId        Int               @map("type_id")
+  emailEnabled  Boolean           @default(true) @map("email_enabled")
+  pushEnabled   Boolean           @default(true) @map("push_enabled")
+  inAppEnabled  Boolean           @default(true) @map("in_app_enabled")
+  
+  // Relations
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type          NotificationType  @relation(fields: [typeId], references: [id])
+
+  @@unique([userId, typeId])
+  @@map("notification_settings")
+}

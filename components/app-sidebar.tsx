@@ -162,7 +162,7 @@ export function AppSidebar() {
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={isActive("/dashboard/profile")} tooltip="Profile">
-              <Link href="/dashboard/profile">
+              <Link href="/dashboard/organizer/profile">
                 <Avatar className="h-6 w-6">
                   <AvatarImage src="/placeholder.svg?height=32&width=32" />
                   <AvatarFallback>A</AvatarFallback>

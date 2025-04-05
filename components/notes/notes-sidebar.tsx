@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState } from "react"
-import { useNotesStore, type Note, type Folder, type NoteTag } from "@/lib/store/notes-store"
+import { useNotesStore } from "@/lib/store/notes-store"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -20,27 +20,34 @@ import {
   ChevronDown,
   ChevronRight,
   MoreHorizontal,
+  Loader2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useFolders, useCreateFolder, useDeleteFolder } from "@/lib/hooks/use-folders"
+import { useTags, useCreateTag, useDeleteTag } from "@/lib/hooks/use-tags"
+import { useToggleNoteFavorite, useDeleteNote } from "@/lib/hooks/use-notes"
+import type { NoteWithTags } from "@/lib/models/notes"
+import { useToast } from "@/hooks/use-toast"
 
 interface NotesSidebarProps {
-  notes: Note[]
+  notes: NoteWithTags[]
+  isLoading?: boolean
 }
 
-export function NotesSidebar({ notes }: NotesSidebarProps) {
-  const {
-    folders,
-    tags,
-    selectedNoteId,
-    selectedFolderId,
-    setSelectedNote,
-    setSelectedFolder,
-    setSearchQuery,
-    addFolder,
-    addTag,
-  } = useNotesStore()
+export function NotesSidebar({ notes, isLoading = false }: NotesSidebarProps) {
+  const { selectedNoteId, selectedFolderId, setSelectedNote, setSelectedFolder, setSearchQuery } = useNotesStore()
+
+  const { data: folders = [], isLoading: foldersLoading } = useFolders()
+  const { data: tags = [], isLoading: tagsLoading } = useTags()
+  const createFolder = useCreateFolder()
+  const createTag = useCreateTag()
+  const deleteFolder = useDeleteFolder()
+  const deleteTag = useDeleteTag()
+  const toggleFavorite = useToggleNoteFavorite()
+  const deleteNoteMutation = useDeleteNote()
+  const { toast } = useToast()
 
   const [isAddingFolder, setIsAddingFolder] = useState(false)
   const [isAddingTag, setIsAddingTag] = useState(false)
@@ -51,6 +58,7 @@ export function NotesSidebar({ notes }: NotesSidebarProps) {
     folders: true,
     tags: true,
   })
+  const [searchInputValue, setSearchInputValue] = useState("")
 
   // Toggle section expansion
   const toggleSection = (section: "folders" | "tags") => {
@@ -63,24 +71,64 @@ export function NotesSidebar({ notes }: NotesSidebarProps) {
   // Handle folder creation
   const handleCreateFolder = () => {
     if (newFolderName.trim()) {
-      addFolder({ name: newFolderName })
-      setNewFolderName("")
-      setIsAddingFolder(false)
+      createFolder.mutate(
+        { name: newFolderName },
+        {
+          onSuccess: () => {
+            setNewFolderName("")
+            setIsAddingFolder(false)
+            toast({
+              title: "Folder created",
+              description: `Folder "${newFolderName}" has been created.`,
+            })
+          },
+          onError: (error) => {
+            toast({
+              title: "Error creating folder",
+              description: error.message,
+              variant: "destructive",
+            })
+          },
+        },
+      )
     }
   }
 
   // Handle tag creation
   const handleCreateTag = () => {
     if (newTagName.trim()) {
-      addTag({ name: newTagName, color: newTagColor })
-      setNewTagName("")
-      setIsAddingTag(false)
+      createTag.mutate(
+        { name: newTagName, colorCode: newTagColor },
+        {
+          onSuccess: () => {
+            setNewTagName("")
+            setIsAddingTag(false)
+            toast({
+              title: "Tag created",
+              description: `Tag "${newTagName}" has been created.`,
+            })
+          },
+          onError: (error) => {
+            toast({
+              title: "Error creating tag",
+              description: error.message,
+              variant: "destructive",
+            })
+          },
+        },
+      )
     }
   }
 
   // Handle search
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value)
+  const handleSearch = () => {
+    setSearchQuery(searchInputValue)
+  }
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      handleSearch()
+    }
   }
 
   return (
@@ -88,7 +136,14 @@ export function NotesSidebar({ notes }: NotesSidebarProps) {
       <div className="p-4">
         <div className="relative">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search notes..." className="pl-8" onChange={handleSearch} />
+          <Input
+            placeholder="Search notes..."
+            className="pl-8"
+            value={searchInputValue}
+            onChange={(e) => setSearchInputValue(e.target.value)}
+            onKeyDown={handleSearchKeyDown}
+            onBlur={handleSearch}
+          />
         </div>
       </div>
 
@@ -96,17 +151,27 @@ export function NotesSidebar({ notes }: NotesSidebarProps) {
         <div className="px-3 py-2">
           <div className="space-y-1">
             {/* Default folders */}
-            {folders
-              .filter((folder) => ["all", "favorites", "trash"].includes(folder.id))
-              .map((folder) => (
-                <SidebarItem
-                  key={folder.id}
-                  icon={getFolderIcon(folder)}
-                  label={folder.name}
-                  isActive={selectedFolderId === folder.id}
-                  onClick={() => setSelectedFolder(folder.id)}
-                />
-              ))}
+            <SidebarItem
+              key="all"
+              icon={<FileText className="h-4 w-4" />}
+              label="All Notes"
+              isActive={selectedFolderId === "all"}
+              onClick={() => setSelectedFolder("all")}
+            />
+            <SidebarItem
+              key="favorites"
+              icon={<Star className="h-4 w-4" />}
+              label="Favorites"
+              isActive={selectedFolderId === "favorites"}
+              onClick={() => setSelectedFolder("favorites")}
+            />
+            <SidebarItem
+              key="trash"
+              icon={<Trash2 className="h-4 w-4" />}
+              label="Trash"
+              isActive={selectedFolderId === "trash"}
+              onClick={() => setSelectedFolder("trash")}
+            />
           </div>
 
           <Separator className="my-4" />
@@ -140,18 +205,41 @@ export function NotesSidebar({ notes }: NotesSidebarProps) {
 
             {expandedSections.folders && (
               <div className="space-y-1 ml-2">
-                {folders
-                  .filter((folder) => !["all", "favorites", "trash"].includes(folder.id))
-                  .map((folder) => (
-                    <SidebarItem
-                      key={folder.id}
-                      icon={<FolderIcon className="h-4 w-4" />}
-                      label={folder.name}
-                      isActive={selectedFolderId === folder.id}
-                      onClick={() => setSelectedFolder(folder.id)}
-                      actions={<FolderActions folder={folder} />}
-                    />
-                  ))}
+                {foldersLoading ? (
+                  <div className="flex items-center justify-center py-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  folders
+                    .filter((folder) => !["all", "favorites", "trash"].includes(folder.name))
+                    .map((folder) => (
+                      <SidebarItem
+                        key={folder.folder_id}
+                        icon={<FolderIcon className="h-4 w-4" />}
+                        label={folder.name}
+                        isActive={selectedFolderId === folder.folder_id.toString()}
+                        onClick={() => setSelectedFolder(folder.folder_id.toString())}
+                        actions={
+                          <FolderActions
+                            folder={folder}
+                            onDelete={(id) => {
+                              deleteFolder.mutate(id, {
+                                onSuccess: () => {
+                                  toast({
+                                    title: "Folder deleted",
+                                    description: `Folder "${folder.name}" has been deleted.`,
+                                  })
+                                  if (selectedFolderId === id.toString()) {
+                                    setSelectedFolder("all")
+                                  }
+                                },
+                              })
+                            }}
+                          />
+                        }
+                      />
+                    ))
+                )}
               </div>
             )}
           </div>
@@ -185,17 +273,37 @@ export function NotesSidebar({ notes }: NotesSidebarProps) {
 
             {expandedSections.tags && (
               <div className="space-y-1 ml-2">
-                {tags.map((tag) => (
-                  <SidebarItem
-                    key={tag.id}
-                    icon={<div className={cn("h-3 w-3 rounded-full", tag.color)} />}
-                    label={tag.name}
-                    onClick={() => {
-                      // Filter by tag logic would go here
-                    }}
-                    actions={<TagActions tag={tag} />}
-                  />
-                ))}
+                {tagsLoading ? (
+                  <div className="flex items-center justify-center py-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  tags.map((tag) => (
+                    <SidebarItem
+                      key={tag.tag_id}
+                      icon={<div className={cn("h-3 w-3 rounded-full", tag.color_code)} />}
+                      label={tag.name}
+                      onClick={() => {
+                        // Filter by tag logic would go here
+                      }}
+                      actions={
+                        <TagActions
+                          tag={tag}
+                          onDelete={(id) => {
+                            deleteTag.mutate(id, {
+                              onSuccess: () => {
+                                toast({
+                                  title: "Tag deleted",
+                                  description: `Tag "${tag.name}" has been deleted.`,
+                                })
+                              },
+                            })
+                          }}
+                        />
+                      }
+                    />
+                  ))
+                )}
               </div>
             )}
           </div>
@@ -205,13 +313,23 @@ export function NotesSidebar({ notes }: NotesSidebarProps) {
           {/* Notes list */}
           <div className="space-y-1">
             <h3 className="text-sm font-medium mb-2">Notes</h3>
-            {notes.length > 0 ? (
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : notes.length > 0 ? (
               notes.map((note) => (
                 <NoteItem
-                  key={note.id}
+                  key={note.note_id}
                   note={note}
-                  isActive={selectedNoteId === note.id}
-                  onClick={() => setSelectedNote(note.id)}
+                  isActive={selectedNoteId === note.note_id.toString()}
+                  onClick={() => setSelectedNote(note.note_id.toString())}
+                  onToggleFavorite={(id) => {
+                    toggleFavorite.mutate(id)
+                  }}
+                  onDelete={(id) => {
+                    deleteNoteMutation.mutate({ noteId: id })
+                  }}
                 />
               ))
             ) : (
@@ -242,7 +360,9 @@ export function NotesSidebar({ notes }: NotesSidebarProps) {
             <Button variant="outline" onClick={() => setIsAddingFolder(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreateFolder}>Create</Button>
+            <Button onClick={handleCreateFolder} disabled={createFolder.isPending}>
+              {createFolder.isPending ? "Creating..." : "Create"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -286,26 +406,14 @@ export function NotesSidebar({ notes }: NotesSidebarProps) {
             <Button variant="outline" onClick={() => setIsAddingTag(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreateTag}>Create</Button>
+            <Button onClick={handleCreateTag} disabled={createTag.isPending}>
+              {createTag.isPending ? "Creating..." : "Create"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   )
-}
-
-// Helper function to get folder icon
-function getFolderIcon(folder: Folder) {
-  switch (folder.id) {
-    case "all":
-      return <FileText className="h-4 w-4" />
-    case "favorites":
-      return <Star className="h-4 w-4" />
-    case "trash":
-      return <Trash2 className="h-4 w-4" />
-    default:
-      return <FolderIcon className="h-4 w-4" />
-  }
 }
 
 // Sidebar item component
@@ -337,17 +445,14 @@ function SidebarItem({ icon, label, isActive, onClick, actions }: SidebarItemPro
 
 // Note item component
 interface NoteItemProps {
-  note: Note
+  note: NoteWithTags
   isActive: boolean
   onClick: () => void
+  onToggleFavorite: (id: number) => void
+  onDelete: (id: number) => void
 }
 
-function NoteItem({ note, isActive, onClick }: NoteItemProps) {
-  const { tags, toggleFavorite } = useNotesStore()
-
-  // Get tags for this note
-  const noteTags = tags.filter((tag) => note.tags.includes(tag.id))
-
+function NoteItem({ note, isActive, onClick, onToggleFavorite, onDelete }: NoteItemProps) {
   return (
     <div
       className={cn(
@@ -359,18 +464,22 @@ function NoteItem({ note, isActive, onClick }: NoteItemProps) {
       <div className="flex items-center justify-between">
         <span className="font-medium truncate">{note.title}</span>
         <div className="flex items-center">
-          {note.isFavorite && <Star className="h-3 w-3 fill-yellow-400 text-yellow-400 ml-1" />}
-          <NoteActions note={note} />
+          {note.is_favorite && <Star className="h-3 w-3 fill-yellow-400 text-yellow-400 ml-1" />}
+          <NoteActions
+            note={note}
+            onToggleFavorite={() => onToggleFavorite(note.note_id)}
+            onDelete={() => onDelete(note.note_id)}
+          />
         </div>
       </div>
       <div className="flex items-center justify-between mt-1 text-xs text-muted-foreground">
-        <span>{format(new Date(note.updatedAt), "MMM d, yyyy")}</span>
-        {noteTags.length > 0 && (
+        <span>{format(new Date(note.updated_at), "MMM d, yyyy")}</span>
+        {note.tags.length > 0 && (
           <div className="flex gap-1">
-            {noteTags.slice(0, 2).map((tag) => (
-              <div key={tag.id} className={cn("h-2 w-2 rounded-full", tag.color)} />
+            {note.tags.slice(0, 2).map((tag) => (
+              <div key={tag.tag_id} className={cn("h-2 w-2 rounded-full", tag.color_code)} />
             ))}
-            {noteTags.length > 2 && <span>+{noteTags.length - 2}</span>}
+            {note.tags.length > 2 && <span>+{note.tags.length - 2}</span>}
           </div>
         )}
       </div>
@@ -379,11 +488,9 @@ function NoteItem({ note, isActive, onClick }: NoteItemProps) {
 }
 
 // Folder actions component
-function FolderActions({ folder }: { folder: Folder }) {
-  const { updateFolder, deleteFolder } = useNotesStore()
-
+function FolderActions({ folder, onDelete }: { folder: any; onDelete: (id: number) => void }) {
   // Don't show actions for default folders
-  if (["all", "favorites", "trash"].includes(folder.id)) {
+  if (["All Notes", "Favorites", "Trash"].includes(folder.name)) {
     return null
   }
 
@@ -398,7 +505,9 @@ function FolderActions({ folder }: { folder: Folder }) {
         <DropdownMenuItem
           onClick={() => {
             const newName = prompt("Enter new folder name", folder.name)
-            if (newName) updateFolder(folder.id, { name: newName })
+            if (newName) {
+              // updateFolder(folder.id, { name: newName })
+            }
           }}
         >
           Rename
@@ -407,7 +516,7 @@ function FolderActions({ folder }: { folder: Folder }) {
           className="text-destructive focus:text-destructive"
           onClick={() => {
             if (confirm("Are you sure you want to delete this folder?")) {
-              deleteFolder(folder.id)
+              onDelete(folder.folder_id)
             }
           }}
         >
@@ -419,9 +528,7 @@ function FolderActions({ folder }: { folder: Folder }) {
 }
 
 // Tag actions component
-function TagActions({ tag }: { tag: NoteTag }) {
-  const { updateTag, deleteTag } = useNotesStore()
-
+function TagActions({ tag, onDelete }: { tag: any; onDelete: (id: number) => void }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -433,7 +540,9 @@ function TagActions({ tag }: { tag: NoteTag }) {
         <DropdownMenuItem
           onClick={() => {
             const newName = prompt("Enter new tag name", tag.name)
-            if (newName) updateTag(tag.id, { name: newName })
+            if (newName) {
+              // updateTag(tag.id, { name: newName })
+            }
           }}
         >
           Rename
@@ -442,7 +551,7 @@ function TagActions({ tag }: { tag: NoteTag }) {
           className="text-destructive focus:text-destructive"
           onClick={() => {
             if (confirm("Are you sure you want to delete this tag?")) {
-              deleteTag(tag.id)
+              onDelete(tag.tag_id)
             }
           }}
         >
@@ -454,9 +563,15 @@ function TagActions({ tag }: { tag: NoteTag }) {
 }
 
 // Note actions component
-function NoteActions({ note }: { note: Note }) {
-  const { updateNote, deleteNote, toggleFavorite } = useNotesStore()
-
+function NoteActions({
+  note,
+  onToggleFavorite,
+  onDelete,
+}: {
+  note: NoteWithTags
+  onToggleFavorite: () => void
+  onDelete: () => void
+}) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -465,13 +580,15 @@ function NoteActions({ note }: { note: Note }) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => toggleFavorite(note.id)}>
-          {note.isFavorite ? "Remove from Favorites" : "Add to Favorites"}
+        <DropdownMenuItem onClick={onToggleFavorite}>
+          {note.is_favorite ? "Remove from Favorites" : "Add to Favorites"}
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => {
             const newTitle = prompt("Enter new note title", note.title)
-            if (newTitle) updateNote(note.id, { title: newTitle })
+            if (newTitle) {
+              // updateNote(note.id, { title: newTitle })
+            }
           }}
         >
           Rename
@@ -480,7 +597,7 @@ function NoteActions({ note }: { note: Note }) {
           className="text-destructive focus:text-destructive"
           onClick={() => {
             if (confirm("Are you sure you want to delete this note?")) {
-              deleteNote(note.id)
+              onDelete()
             }
           }}
         >
