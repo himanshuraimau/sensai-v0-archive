@@ -177,17 +177,7 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive("/dashboard/notifications")} tooltip="Notifications">
-              <Link href="/dashboard/notifications">
-                <Bell />
-                <span>Notifications</span>
-                <Badge variant="destructive" className="ml-auto">
-                  3
-                </Badge>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+         
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={isActive("/dashboard/profile")} tooltip="Profile">
               <Link href="/dashboard/profile">
