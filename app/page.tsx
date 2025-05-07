@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { ArrowRight, Brain, Lightbulb, Zap, CheckCircle, Star, Users, BookOpen, BarChart, Shield } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { motion } from "framer-motion"
+import Image from "next/image"
 
 export default function LandingPage() {
   return (
@@ -47,80 +48,53 @@ export default function LandingPage() {
       {/* Hero Section */}
       <section className="relative overflow-hidden py-20 md:py-32">
         <div className="container mx-auto px-4">
-          <div className="grid gap-12 md:grid-cols-2 md:gap-8 items-center">
-            <motion.div className="space-y-6" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
-              <div className="inline-block rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
-                AI-Powered Learning Platform
-              </div>
-              <h1 className="text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
-                Learn Smarter with <span className="text-primary">Personalized</span> AI Education
-              </h1>
-              <p className="text-xl text-muted-foreground">
-                Personalized learning experiences that adapt to your needs. Engage with interactive content, track your
-                progress, and achieve your goals faster than ever before.
-              </p>
-              <div className="flex flex-wrap gap-4">
-                <Button size="lg" asChild className="rounded-full">
-                  <Link href="/signup">
-                    Get Started <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-                <Button size="lg" variant="outline" asChild className="rounded-full">
-                  <Link href="/demo">See Demo</Link>
-                </Button>
-              </div>
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                <div className="flex items-center gap-1">
-                  <CheckCircle className="h-4 w-4 text-primary" />
-                  <span>No credit card required</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <CheckCircle className="h-4 w-4 text-primary" />
-                  <span>14-day free trial</span>
-                </div>
-              </div>
-            </motion.div>
-            <div className="relative">
-              <motion.div className="aspect-video overflow-hidden rounded-xl border bg-background shadow-xl" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}>
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-background/0"></div>
-                <img
-                  src="/place.png?height=600&width=800"
-                  style={{ objectFit: "fill" }}
-                  alt="SensiAI Dashboard Preview"
-                  className="h-full w-full object-cover"
-                />
-              </motion.div>
-              <div className="absolute -bottom-6 -left-6 h-24 w-24 rounded-full bg-primary/30 blur-xl"></div>
-              <div className="absolute -top-6 -right-6 h-24 w-24 rounded-full bg-primary/30 blur-xl"></div>
+          <motion.div 
+            className="max-w-3xl mx-auto space-y-6 text-center" 
+            initial={{ opacity: 0, y: 20 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            transition={{ delay: 0.6 }}
+          >
+            <div className="inline-block rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
+              AI-Powered Learning Platform
             </div>
-          </div>
+            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
+              Learn Smarter with <span className="text-primary">Personalized</span> AI Education
+            </h1>
+            <p className="text-xl text-muted-foreground">
+              Personalized learning experiences that adapt to your needs. Engage with interactive content, track your
+              progress, and achieve your goals faster than ever before.
+            </p>
+            <div className="flex flex-wrap justify-center gap-4">
+              <Button size="lg" asChild className="rounded-full">
+                <Link href="/signup">
+                  Get Started <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
+            <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <CheckCircle className="h-4 w-4 text-primary" />
+                <span>No credit card required</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <CheckCircle className="h-4 w-4 text-primary" />
+                <span>14-day free trial</span>
+              </div>
+            </div>
+          </motion.div>
         </div>
       </section>
 
       {/* Trusted By Section */}
-      <section className="border-y  py-12">
+      <section className="border-y py-12">
         <div className="container mx-auto px-4">
-          <h2 className="mb-8 text-center text-lg font-medium text-muted-foreground">
-            Trusted by leading organizations
+          <h2 className="text-center text-xl font-medium">
+            Trusted by thousands of learners and educators worldwide
           </h2>
-          <div className="flex flex-wrap justify-center gap-8 md:gap-16">
-            {[
-              { src: "/logoipsum-288.svg", alt: "Google" },
-              { src: "/logoipsum-352.svg", alt: "Microsoft" },
-              { src: "/logoipsum-354.svg", alt: "Amazon" },
-              { src: "/logoipsum-359.svg", alt: "Meta" },
-              { src: "/logoipsum-360.svg", alt: "OpenAI" },
-            ].map((logo, i) => (
-              <div
-                key={i}
-                className="flex h-12 items-center justify-center opacity-70 transition-all hover:opacity-100 hover:grayscale-0"
-              >
-                <img src={logo.src} alt={logo.alt} className="h-8 object-contain" />
-              </div>
-            ))}
-          </div>
+          <p className="mt-4 text-center text-muted-foreground">
+            Join our growing community of students, teachers, and professionals accelerating their learning journey
+          </p>
         </div>
-
       </section>
 
       {/* Features Section */}
